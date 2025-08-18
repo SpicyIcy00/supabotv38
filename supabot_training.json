@@ -1,0 +1,9 @@
+[
+  {
+    "question": "sales per hour total of all stores and all dates",
+    "sql": "\n                WITH hourly_sales AS (\n                    SELECT \n                        EXTRACT(HOUR FROM t.transaction_time AT TIME ZONE 'Asia/Manila') as hour,\n                        TO_CHAR((t.transaction_time AT TIME ZONE 'Asia/Manila'), 'HH12:00 AM') as hour_label,\n                        SUM(t.total) as total_sales\n                    FROM transactions t\n                    WHERE LOWER(t.transaction_type) = 'sale' \n                    AND (t.is_cancelled = false OR t.is_cancelled IS NULL)\n                    GROUP BY EXTRACT(HOUR FROM t.transaction_time AT TIME ZONE 'Asia/Manila'), TO_CHAR((t.transaction_time AT TIME ZONE 'Asia/Manila'), 'HH12:00 AM')\n                    ORDER BY hour\n                )\n                SELECT hour, hour_label, COALESCE(total_sales, 0) as total_sales FROM hourly_sales;\n                ",
+    "feedback": "correct",
+    "explanation": "Groups by hour only across ALL stores and dates. Different from per-store breakdown.",
+    "timestamp": "2025-08-17T16:00:03.551227"
+  }
+]
