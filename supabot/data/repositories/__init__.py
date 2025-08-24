@@ -1,2 +1,0 @@
-"""Data repositories module"""
-
