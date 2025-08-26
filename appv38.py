@@ -23,11 +23,9 @@ from supabot.core.database import (
 )
 from supabot.ui.styles.css import DashboardStyles
 
-# Configure Streamlit
-settings.configure_streamlit()
-
-# Load CSS styles
-DashboardStyles.load_all_styles()
+# Configure Streamlit and load styles only when needed
+# settings.configure_streamlit()
+# DashboardStyles.load_all_styles()
 
 # Database Pool Monitoring Functions
 def show_pool_status():
@@ -6841,35 +6839,7 @@ def get_ai_weekly_briefing(analysis_json: dict) -> str:
     return generate_full_briefing(analysis_json)
 
 
-def render_ai_intelligence_hub():
-    """Render the AI Intelligence Hub page - placeholder for future features."""
-    st.markdown('<div class="main-header"><h1>🧠 AI Intelligence Hub</h1><p>Advanced AI Intelligence Features - Coming Soon</p></div>', unsafe_allow_html=True)
-    
-    st.info("🚧 **AI Intelligence Hub is currently under development.**")
-    
-    st.markdown("### 📋 Planned Features:")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("""
-        **🔮 Advanced Analytics:**
-        - Predictive modeling
-        - Customer segmentation
-        - Demand forecasting
-        - Anomaly detection
-        """)
-    
-    with col2:
-        st.markdown("""
-        **🎯 Strategic Insights:**
-        - Market trend analysis
-        - Competitive intelligence
-        - Growth opportunity identification
-        - Risk assessment
-        """)
-    
-    st.markdown("### 💡 Current AI Intelligence")
-    st.info("The AI Intelligence functionality has been moved to the **Dashboard** page for better integration with your workflow.")
+# Duplicate function removed - using the one defined earlier
 def render_smart_reports():
     """Deprecated placeholder to keep references; replaced by Product Sales Report."""
     st.info("Smart Reports has been replaced by Product Sales Report. Use the sidebar to open it.")
@@ -7168,7 +7138,8 @@ def render_product_sales_report():
                     use_container_width=True,
                 )
 
-def main():
+# Legacy main function - kept for compatibility but not used by main.py
+def legacy_main():
     try:
         load_css()
         init_session_state()
@@ -7227,4 +7198,4 @@ def main():
         st.info("Please check your configuration and try refreshing the page.")
 
 if __name__ == "__main__":
-    main()
+    legacy_main()
