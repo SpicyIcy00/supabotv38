@@ -3553,6 +3553,356 @@ def render_dashboard():
         # (Removed bottom Sales Trend Analysis and Inventory by Category sections)
         st.markdown('</div>', unsafe_allow_html=True)  # Close chart-container
         
+        # --- Advanced Data Analytics Tab ---
+        st.markdown("---")
+        
+        # Create tabs for different analytics sections
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "🔍 AI Analytics", 
+            "📊 Predictive Forecasting", 
+            "👥 Customer Intelligence", 
+            "🚨 Smart Alerts", 
+            "🤖 Automated Insights"
+        ])
+        
+        # Tab 1: AI Analytics Engine
+        with tab1:
+            st.markdown("### 🔍 AI Analytics Engine")
+            st.caption("Advanced analytics for hidden demand detection and stockout prediction")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("🔍 Detect Hidden Demand", key="detect_hidden_demand"):
+                    with st.spinner("Analyzing sales patterns and inventory levels..."):
+                        try:
+                            # Initialize AI Analytics Engine
+                            ai_engine = get_ai_analytics_engine()
+                            hidden_demand_df = ai_engine.detect_hidden_demand(days_back=90)
+                            
+                            if hidden_demand_df is not None and not hidden_demand_df.empty:
+                                st.success(f"✅ Found {len(hidden_demand_df)} products with hidden demand!")
+                                st.dataframe(hidden_demand_df.head(10), use_container_width=True)
+                                
+                                # Download option
+                                csv_data = hidden_demand_df.to_csv(index=False)
+                                st.download_button(
+                                    "📥 Download Hidden Demand Report",
+                                    csv_data,
+                                    "hidden_demand_analysis.csv",
+                                    "text/csv",
+                                    use_container_width=True
+                                )
+                            else:
+                                st.info("No hidden demand patterns detected.")
+                        except Exception as e:
+                            st.error(f"Error analyzing hidden demand: {e}")
+            
+            with col2:
+                if st.button("🧯 Predict Stockouts", key="predict_stockouts"):
+                    with st.spinner("Calculating days until stockout..."):
+                        try:
+                            # Get inventory and sales velocity data
+                            sql = """
+                            WITH daily_velocity AS (
+                                SELECT 
+                                    ti.product_id,
+                                    t.store_id,
+                                    DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') as sale_date,
+                                    SUM(ti.quantity) as daily_sales
+                                FROM transaction_items ti
+                                JOIN transactions t ON ti.transaction_ref_id = t.ref_id
+                                WHERE LOWER(t.transaction_type) = 'sale' 
+                                AND COALESCE(t.is_cancelled, false) = false
+                                AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '30 days'
+                                GROUP BY ti.product_id, t.store_id, DATE(t.transaction_time AT TIME ZONE 'Asia/Manila')
+                            ),
+                            avg_velocity AS (
+                                SELECT 
+                                    product_id,
+                                    store_id,
+                                    AVG(daily_sales) as avg_daily_demand,
+                                    STDDEV(daily_sales) as demand_volatility
+                                FROM daily_velocity
+                                GROUP BY product_id, store_id
+                            )
+                            SELECT 
+                                p.name as product_name,
+                                s.name as store_name,
+                                p.category,
+                                i.quantity_on_hand,
+                                COALESCE(av.avg_daily_demand, 0) as avg_daily_demand,
+                                CASE 
+                                    WHEN COALESCE(av.avg_daily_demand, 0) > 0 
+                                    THEN FLOOR(i.quantity_on_hand / av.avg_daily_demand)
+                                    ELSE NULL 
+                                END as days_until_stockout,
+                                CASE 
+                                    WHEN i.quantity_on_hand <= COALESCE(i.warning_stock, 5) THEN 'CRITICAL'
+                                    WHEN COALESCE(av.avg_daily_demand, 0) > 0 AND (i.quantity_on_hand / av.avg_daily_demand) <= 7 THEN 'WARNING'
+                                    ELSE 'SAFE'
+                                END as stockout_risk
+                            FROM inventory i
+                            JOIN products p ON i.product_id = p.id
+                            JOIN stores s ON i.store_id = s.id
+                            LEFT JOIN avg_velocity av ON i.product_id = av.product_id AND i.store_id = av.store_id
+                            WHERE i.quantity_on_hand > 0
+                            ORDER BY days_until_stockout ASC NULLS LAST
+                            LIMIT 20
+                            """
+                            
+                            stockout_df = execute_query_for_dashboard(sql)
+                            if stockout_df is not None and not stockout_df.empty:
+                                st.success(f"✅ Stockout analysis complete!")
+                                st.dataframe(stockout_df, use_container_width=True)
+                                
+                                # Download option
+                                csv_data = stockout_df.to_csv(index=False)
+                                st.download_button(
+                                    "📥 Download Stockout Predictions",
+                                    csv_data,
+                                    "stockout_predictions.csv",
+                                    "text/csv",
+                                    use_container_width=True
+                                )
+                            else:
+                                st.info("No stockout risks detected.")
+                        except Exception as e:
+                            st.error(f"Error predicting stockouts: {e}")
+        
+        # Tab 2: Predictive Forecasting Engine
+        with tab2:
+            st.markdown("### 📊 Predictive Forecasting Engine")
+            st.caption("Demand trends, seasonal patterns, and product lifecycle analysis")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                if st.button("📈 Forecast Demand Trends", key="forecast_demand"):
+                    with st.spinner("Analyzing demand trends..."):
+                        try:
+                            # Initialize Predictive Forecasting Engine
+                            forecasting_engine = PredictiveForecastingEngine(create_db_connection)
+                            trends_df = forecasting_engine.forecast_demand_trends(days_ahead=30)
+                            
+                            if trends_df is not None and not trends_df.empty:
+                                st.success(f"✅ Demand trends analyzed!")
+                                st.dataframe(trends_df.head(10), use_container_width=True)
+                                
+                                # Download option
+                                csv_data = trends_df.to_csv(index=False)
+                                st.download_button(
+                                    "📥 Download Demand Trends",
+                                    csv_data,
+                                    "demand_trends.csv",
+                                    "text/csv",
+                                    use_container_width=True
+                                )
+                            else:
+                                st.info("No demand trends data available.")
+                        except Exception as e:
+                            st.error(f"Error forecasting demand: {e}")
+            
+            with col2:
+                if st.button("🌿 Identify Seasonal Products", key="identify_seasonal"):
+                    with st.spinner("Analyzing seasonal patterns..."):
+                        try:
+                            forecasting_engine = PredictiveForecastingEngine(create_db_connection)
+                            seasonal_df = forecasting_engine.identify_seasonal_products()
+                            
+                            if seasonal_df is not None and not seasonal_df.empty:
+                                st.success(f"✅ Seasonal analysis complete!")
+                                st.dataframe(seasonal_df.head(10), use_container_width=True)
+                                
+                                # Download option
+                                csv_data = seasonal_df.to_csv(index=False)
+                                st.download_button(
+                                    "📥 Download Seasonal Analysis",
+                                    csv_data,
+                                    "seasonal_products.csv",
+                                    "text/csv",
+                                    use_container_width=True
+                                )
+                            else:
+                                st.info("No seasonal patterns detected.")
+                        except Exception as e:
+                            st.error(f"Error analyzing seasonality: {e}")
+            
+            with col3:
+                if st.button("🔄 Analyze Product Lifecycle", key="analyze_lifecycle"):
+                    with st.spinner("Analyzing product lifecycle stages..."):
+                        try:
+                            forecasting_engine = PredictiveForecastingEngine(create_db_connection)
+                            lifecycle_df = forecasting_engine.analyze_product_lifecycle()
+                            
+                            if lifecycle_df is not None and not lifecycle_df.empty:
+                                st.success(f"✅ Lifecycle analysis complete!")
+                                st.dataframe(lifecycle_df.head(10), use_container_width=True)
+                                
+                                # Download option
+                                csv_data = lifecycle_df.to_csv(index=False)
+                                st.download_button(
+                                    "📥 Download Lifecycle Analysis",
+                                    csv_data,
+                                    "product_lifecycle.csv",
+                                    "text/csv",
+                                    use_container_width=True
+                                )
+                            else:
+                                st.info("No lifecycle data available.")
+                        except Exception as e:
+                            st.error(f"Error analyzing lifecycle: {e}")
+        
+        # Tab 3: Customer Intelligence Engine
+        with tab3:
+            st.markdown("### 👥 Customer Intelligence Engine")
+            st.caption("Shopping patterns, basket analysis, and customer segmentation")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                if st.button("🛒 Analyze Shopping Patterns", key="analyze_patterns"):
+                    with st.spinner("Analyzing customer behavior patterns..."):
+                        try:
+                            # Initialize Customer Intelligence Engine
+                            customer_engine = CustomerIntelligenceEngine(create_db_connection)
+                            patterns_df = customer_engine.analyze_shopping_patterns()
+                            
+                            if patterns_df is not None and not patterns_df.empty:
+                                st.success(f"✅ Shopping patterns analyzed!")
+                                st.dataframe(patterns_df.head(15), use_container_width=True)
+                                
+                                # Download option
+                                csv_data = patterns_df.to_csv(index=False)
+                                st.download_button(
+                                    "📥 Download Shopping Patterns",
+                                    csv_data,
+                                    "shopping_patterns.csv",
+                                    "text/csv",
+                                    use_container_width=True
+                                )
+                            else:
+                                st.info("No shopping pattern data available.")
+                        except Exception as e:
+                            st.error(f"Error analyzing patterns: {e}")
+            
+            with col2:
+                if st.button("🛍️ Perform Basket Analysis", key="basket_analysis"):
+                    with st.spinner("Analyzing product co-purchasing patterns..."):
+                        try:
+                            customer_engine = CustomerIntelligenceEngine(create_db_connection)
+                            basket_df = customer_engine.perform_basket_analysis()
+                            
+                            if basket_df is not None and not basket_df.empty:
+                                st.success(f"✅ Basket analysis complete!")
+                                st.dataframe(basket_df.head(15), use_container_width=True)
+                                
+                                # Download option
+                                csv_data = basket_df.to_csv(index=False)
+                                st.download_button(
+                                    "📥 Download Basket Analysis",
+                                    csv_data,
+                                    "basket_analysis.csv",
+                                    "text/csv",
+                                    use_container_width=True
+                                )
+                            else:
+                                st.info("No basket analysis data available.")
+                        except Exception as e:
+                            st.error(f"Error analyzing basket: {e}")
+            
+            with col3:
+                if st.button("👥 Segment Customers", key="segment_customers"):
+                    with st.spinner("Performing RFM customer segmentation..."):
+                        try:
+                            customer_engine = CustomerIntelligenceEngine(create_db_connection)
+                            segments_df = customer_engine.segment_customers()
+                            
+                            if segments_df is not None and not segments_df.empty:
+                                st.success(f"✅ Customer segmentation complete!")
+                                st.dataframe(segments_df.head(15), use_container_width=True)
+                                
+                                # Download option
+                                csv_data = segments_df.to_csv(index=False)
+                                st.download_button(
+                                    "📥 Download Customer Segments",
+                                    csv_data,
+                                    "customer_segments.csv",
+                                    "text/csv",
+                                    use_container_width=True
+                                )
+                            else:
+                                st.info("No customer segmentation data available.")
+                        except Exception as e:
+                            st.error(f"Error segmenting customers: {e}")
+        
+        # Tab 4: Smart Alert Manager
+        with tab4:
+            st.markdown("### 🚨 Smart Alert Manager")
+            st.caption("Proactive inventory and business alerts")
+            
+            if st.button("🔔 Get Active Alerts", key="get_alerts"):
+                with st.spinner("Checking for active alerts..."):
+                    try:
+                        # Initialize Smart Alert Manager
+                        alert_manager = SmartAlertManager(create_db_connection)
+                        alerts = alert_manager.get_active_alerts()
+                        
+                        if alerts:
+                            st.success(f"✅ Found {len(alerts)} active alerts!")
+                            
+                            for alert in alerts:
+                                with st.container(border=True):
+                                    st.markdown(f"**{alert['icon']} {alert['type']}**")
+                                    st.write(alert['message'])
+                                    st.caption(f"Action: {alert['alert']['action']}")
+                        else:
+                            st.info("✅ No active alerts at this time.")
+                    except Exception as e:
+                        st.error(f"Error retrieving alerts: {e}")
+        
+        # Tab 5: Automated Insight Engine
+        with tab5:
+            st.markdown("### 🤖 Automated Insight Engine")
+            st.caption("AI-powered weekly business reviews and insights")
+            
+            if st.button("📊 Generate Weekly Business Review", key="generate_review"):
+                with st.spinner("Generating AI-powered business review..."):
+                    try:
+                        # Initialize Automated Insight Engine
+                        insight_engine = AutomatedInsightEngine(create_db_connection, get_claude_client)
+                        review = insight_engine.generate_weekly_business_review()
+                        
+                        if review and 'summary' in review:
+                            st.success("✅ Weekly business review generated!")
+                            st.markdown(review['summary'])
+                            
+                            if 'metrics' in review:
+                                st.markdown("**📈 Key Metrics:**")
+                                metrics = review['metrics']
+                                col1, col2, col3, col4 = st.columns(4)
+                                with col1:
+                                    st.metric("Current Week Sales", f"₱{metrics.get('current_week_sales', 0):,.0f}")
+                                with col2:
+                                    st.metric("Previous Week Sales", f"₱{metrics.get('previous_week_sales', 0):,.0f}")
+                                with col3:
+                                    st.metric("Current Week TX", f"{metrics.get('current_week_tx', 0):,}")
+                                with col4:
+                                    st.metric("Previous Week TX", f"{metrics.get('previous_week_tx', 0):,}")
+                            
+                            # Download option
+                            st.download_button(
+                                "📥 Download Business Review",
+                                review['summary'],
+                                f"weekly_business_review_{datetime.now().strftime('%Y%m%d')}.md",
+                                "text/markdown",
+                                use_container_width=True
+                            )
+                        else:
+                            st.info("No business review data available.")
+                    except Exception as e:
+                        st.error(f"Error generating business review: {e}")
+        
         # --- AI Intelligence Section (Fullscreen) ---
         st.markdown("---")
         st.markdown("### 🧠 AI Business Intelligence")
@@ -3651,6 +4001,194 @@ def render_dashboard():
         
 
 # --- MODIFICATION END ---
+
+# Missing functions for AI Intelligence Hub
+@st.cache_data(ttl=3600)
+def get_overall_weekly_data():
+    """Get overall weekly sales data for AI intelligence"""
+    try:
+        sql = """
+        WITH weekly_sales AS (
+            SELECT 
+                DATE_TRUNC('week', t.transaction_time AT TIME ZONE 'Asia/Manila') as week,
+                SUM(t.total) as weekly_sales,
+                COUNT(DISTINCT t.ref_id) as weekly_transactions
+            FROM transactions t
+            WHERE LOWER(t.transaction_type) = 'sale' 
+            AND COALESCE(t.is_cancelled, false) = false
+            AND (t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '28 days'
+            GROUP BY DATE_TRUNC('week', t.transaction_time AT TIME ZONE 'Asia/Manila')
+            ORDER BY week DESC
+        )
+        SELECT * FROM weekly_sales LIMIT 4
+        """
+        return execute_query_for_dashboard(sql)
+    except Exception:
+        return None
+
+@st.cache_data(ttl=3600)
+def get_stores_weekly_data():
+    """Get store performance data by week"""
+    try:
+        sql = """
+        WITH weekly_store_sales AS (
+            SELECT 
+                s.name as store_name,
+                DATE_TRUNC('week', t.transaction_time AT TIME ZONE 'Asia/Manila') as week,
+                SUM(t.total) as weekly_sales,
+                COUNT(DISTINCT t.ref_id) as weekly_transactions
+            FROM transactions t
+            JOIN stores s ON t.store_id = s.id
+            WHERE LOWER(t.transaction_type) = 'sale' 
+            AND COALESCE(t.is_cancelled, false) = false
+            AND (t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '28 days'
+            GROUP BY s.name, DATE_TRUNC('week', t.transaction_time AT TIME ZONE 'Asia/Manila')
+            ORDER BY week DESC, weekly_sales DESC
+        )
+        SELECT * FROM weekly_store_sales LIMIT 20
+        """
+        return execute_query_for_dashboard(sql)
+    except Exception:
+        return None
+
+@st.cache_data(ttl=3600)
+def get_products_weekly_data():
+    """Get product performance data by week"""
+    try:
+        sql = """
+        WITH weekly_product_sales AS (
+            SELECT 
+                p.name as product_name,
+                p.category,
+                DATE_TRUNC('week', t.transaction_time AT TIME ZONE 'Asia/Manila') as week,
+                SUM(ti.item_total) as weekly_revenue,
+                SUM(ti.quantity) as weekly_quantity
+            FROM transaction_items ti
+            JOIN transactions t ON ti.transaction_ref_id = t.ref_id
+            JOIN products p ON ti.product_id = p.id
+            WHERE LOWER(t.transaction_type) = 'sale' 
+            AND COALESCE(t.is_cancelled, false) = false
+            AND (t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '28 days'
+            GROUP BY p.name, p.category, DATE_TRUNC('week', t.transaction_time AT TIME ZONE 'Asia/Manila')
+            ORDER BY week DESC, weekly_revenue DESC
+        )
+        SELECT * FROM weekly_product_sales LIMIT 30
+        """
+        return execute_query_for_dashboard(sql)
+    except Exception:
+        return None
+
+@st.cache_data(ttl=3600)
+def get_category_weekly_data():
+    """Get category performance data by week"""
+    try:
+        sql = """
+        WITH weekly_category_sales AS (
+            SELECT 
+                p.category,
+                DATE_TRUNC('week', t.transaction_time AT TIME ZONE 'Asia/Manila') as week,
+                SUM(ti.item_total) as weekly_revenue,
+                SUM(ti.quantity) as weekly_quantity
+            FROM transaction_items ti
+            JOIN transactions t ON ti.transaction_ref_id = t.ref_id
+            JOIN products p ON ti.product_id = p.id
+            WHERE LOWER(t.transaction_type) = 'sale' 
+            AND COALESCE(t.is_cancelled, false) = false
+            AND (t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '28 days'
+            GROUP BY p.category, DATE_TRUNC('week', t.transaction_time AT TIME ZONE 'Asia/Manila')
+            ORDER BY week DESC, weekly_revenue DESC
+        )
+        SELECT * FROM weekly_category_sales LIMIT 20
+        """
+        return execute_query_for_dashboard(sql)
+    except Exception:
+        return None
+
+@st.cache_data(ttl=3600)
+def get_time_patterns_data():
+    """Get time pattern analysis data"""
+    try:
+        sql = """
+        WITH time_patterns AS (
+            SELECT 
+                EXTRACT(HOUR FROM t.transaction_time AT TIME ZONE 'Asia/Manila') as hour,
+                EXTRACT(DOW FROM t.transaction_time AT TIME ZONE 'Asia/Manila') as day_of_week,
+                COUNT(DISTINCT t.ref_id) as transaction_count,
+                AVG(t.total) as avg_transaction_value
+            FROM transactions t
+            WHERE LOWER(t.transaction_type) = 'sale' 
+            AND COALESCE(t.is_cancelled, false) = false
+            AND (t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '28 days'
+            GROUP BY EXTRACT(HOUR FROM t.transaction_time AT TIME ZONE 'Asia/Manila'), 
+                     EXTRACT(DOW FROM t.transaction_time AT TIME ZONE 'Asia/Manila')
+            ORDER BY transaction_count DESC
+        )
+        SELECT * FROM time_patterns LIMIT 50
+        """
+        return execute_query_for_dashboard(sql)
+    except Exception:
+        return None
+
+def generate_ai_intelligence_summary():
+    """Generate AI-powered intelligence summary"""
+    try:
+        client = get_claude_client()
+        if not client:
+            return "AI client not configured. Cannot generate insights."
+        
+        # Get summary data
+        overall_data = get_overall_weekly_data()
+        stores_data = get_stores_weekly_data()
+        products_data = get_products_weekly_data()
+        categories_data = get_category_weekly_data()
+        time_data = get_time_patterns_data()
+        
+        if not overall_data or overall_data.empty:
+            return "Not enough data to generate intelligence summary."
+        
+        # Prepare data summary for AI
+        data_summary = f"""
+        Weekly Sales Data (Last 4 weeks):
+        {overall_data.to_string() if overall_data is not None else 'No data'}
+        
+        Store Performance:
+        {stores_data.to_string() if stores_data is not None else 'No data'}
+        
+        Product Performance:
+        {products_data.head(10).to_string() if products_data is not None else 'No data'}
+        
+        Category Performance:
+        {categories_data.to_string() if categories_data is not None else 'No data'}
+        
+        Time Patterns:
+        {time_data.head(10).to_string() if time_data is not None else 'No data'}
+        """
+        
+        prompt = f"""
+        Based on this business data, provide a comprehensive 4-week business intelligence summary including:
+        
+        1. **Performance Overview**: Key metrics and trends
+        2. **Top Performers**: Best performing stores, products, and categories
+        3. **Growth Opportunities**: Areas showing potential for improvement
+        4. **Risk Factors**: Any concerning trends or issues
+        5. **Strategic Recommendations**: Actionable next steps
+        
+        Data Summary:
+        {data_summary}
+        
+        Provide a professional, business-focused analysis with specific insights and recommendations.
+        """
+        
+        response = client.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=800,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        
+        return response.content[0].text
+        
+    except Exception as e:
+        return f"Error generating AI intelligence summary: {e}"
 
 # Enhanced Chat Page with Assistant
 def render_chat():
@@ -5479,1370 +6017,6 @@ def render_settings():
     with col2:
         if st.button("🔄 Restart App"):
             st.rerun()
-
-# --- ADVANCED DATA ANALYTICS ENGINES ---
-
-class AIAnalyticsEngine:
-    """Advanced AI-powered analytics engine for business intelligence."""
-    
-    def __init__(self, db_connection_func):
-        self.get_db_connection = db_connection_func
-    
-    def _execute_query(self, sql, params=None):
-        """Execute query using existing pattern."""
-        try:
-            return execute_query_for_dashboard(sql, params)
-        except Exception as e:
-            st.error(f"Query execution failed: {e}")
-            return None
-    
-    @st.cache_data(ttl=3600)
-    def detect_hidden_demand(_self, days_back=90):
-        """Detect products with hidden demand (sales history but current stockouts)."""
-        sql = """
-        WITH product_sales AS (
-            SELECT 
-                p.id as product_id,
-                p.name as product_name,
-                p.sku,
-                p.category,
-                COALESCE(SUM(ti.quantity), 0) as total_quantity_sold,
-                COUNT(DISTINCT t.id) as transaction_count,
-                AVG(ti.quantity) as avg_quantity_per_transaction,
-                MAX(t.created_at AT TIME ZONE 'Asia/Manila') as last_sale_date,
-                EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'Asia/Manila' - MAX(t.created_at AT TIME ZONE 'Asia/Manila'))) / 86400 as days_since_last_sale,
-                COALESCE(SUM(ti.quantity) / NULLIF(COUNT(DISTINCT DATE(t.created_at AT TIME ZONE 'Asia/Manila')), 0), 0) as avg_daily_demand
-            FROM products p
-            LEFT JOIN transaction_items ti ON p.id = ti.product_id
-            LEFT JOIN transactions t ON ti.transaction_id = t.id
-            WHERE (t.transaction_type = 'sale' AND (t.is_cancelled = false OR t.is_cancelled IS NULL))
-                OR t.id IS NULL
-            GROUP BY p.id, p.name, p.sku, p.category
-        ),
-        inventory_status AS (
-            SELECT 
-                ps.*,
-                COALESCE(SUM(i.quantity), 0) as current_stock,
-                CASE 
-                    WHEN COALESCE(SUM(i.quantity), 0) = 0 THEN 'OUT_OF_STOCK'
-                    WHEN COALESCE(SUM(i.quantity), 0) <= 5 THEN 'LOW_STOCK'
-                    ELSE 'IN_STOCK'
-                END as stock_status
-            FROM product_sales ps
-            LEFT JOIN inventory i ON ps.product_id = i.product_id
-            GROUP BY ps.product_id, ps.product_name, ps.sku, ps.category, 
-                     ps.total_quantity_sold, ps.transaction_count, ps.avg_quantity_per_transaction,
-                     ps.last_sale_date, ps.days_since_last_sale, ps.avg_daily_demand
-        )
-        SELECT 
-            product_id,
-            product_name,
-            sku,
-            category,
-            total_quantity_sold,
-            transaction_count,
-            avg_quantity_per_transaction,
-            current_stock,
-            stock_status,
-            last_sale_date,
-            days_since_last_sale,
-            avg_daily_demand,
-            CASE 
-                WHEN avg_daily_demand > 0 THEN current_stock / NULLIF(avg_daily_demand, 0)
-                ELSE NULL
-            END as days_until_stockout,
-            -- Hidden demand score
-            (avg_daily_demand * 20) + 
-            CASE 
-                WHEN days_since_last_sale <= 7 THEN 50
-                WHEN days_since_last_sale <= 30 THEN 30
-                WHEN days_since_last_sale <= 90 THEN 10
-                ELSE 0
-            END +
-            CASE 
-                WHEN stock_status = 'OUT_OF_STOCK' THEN 100
-                WHEN stock_status = 'LOW_STOCK' THEN 50
-                ELSE 0
-            END as hidden_demand_score
-        FROM inventory_status
-        WHERE total_quantity_sold > 0  -- Only products with sales history
-        ORDER BY hidden_demand_score DESC
-        LIMIT 50;
-        """
-        return _self._execute_query(sql)
-    
-    @st.cache_data(ttl=1800) 
-    def predict_stockouts(_self, forecast_days=21):
-        """Predict potential stockouts based on current inventory and demand velocity."""
-        sql = """
-        WITH daily_demand AS (
-            SELECT 
-                p.id as product_id,
-                p.name as product_name,
-                p.sku,
-                p.category,
-                DATE(t.created_at AT TIME ZONE 'Asia/Manila') as sale_date,
-                SUM(ti.quantity) as daily_quantity_sold
-            FROM products p
-            JOIN transaction_items ti ON p.id = ti.product_id
-            JOIN transactions t ON ti.transaction_id = t.id
-            WHERE t.transaction_type = 'sale' 
-                AND (t.is_cancelled = false OR t.is_cancelled IS NULL)
-                AND t.created_at AT TIME ZONE 'Asia/Manila' >= NOW() AT TIME ZONE 'Asia/Manila' - INTERVAL '30 days'
-            GROUP BY p.id, p.name, p.sku, p.category, DATE(t.created_at AT TIME ZONE 'Asia/Manila')
-        ),
-        demand_velocity AS (
-            SELECT 
-                product_id,
-                product_name,
-                sku,
-                category,
-                AVG(daily_quantity_sold) as avg_daily_demand,
-                STDDEV(daily_quantity_sold) as demand_volatility,
-                COUNT(*) as days_with_sales
-            FROM daily_demand
-            GROUP BY product_id, product_name, sku, category
-        ),
-        current_inventory AS (
-            SELECT 
-                dv.*,
-                COALESCE(SUM(i.quantity), 0) as current_stock
-            FROM demand_velocity dv
-            LEFT JOIN inventory i ON dv.product_id = i.product_id
-            GROUP BY dv.product_id, dv.product_name, dv.sku, dv.category,
-                     dv.avg_daily_demand, dv.demand_volatility, dv.days_with_sales
-        )
-        SELECT 
-            product_id,
-            product_name,
-            sku,
-            category,
-            current_stock,
-            avg_daily_demand,
-            demand_volatility,
-            days_with_sales,
-            CASE 
-                WHEN avg_daily_demand > 0 THEN current_stock / avg_daily_demand
-                ELSE NULL
-            END as days_until_stockout,
-            CASE 
-                WHEN avg_daily_demand > 0 AND current_stock / avg_daily_demand <= 3 THEN 'CRITICAL'
-                WHEN avg_daily_demand > 0 AND current_stock / avg_daily_demand <= 7 THEN 'HIGH'
-                WHEN avg_daily_demand > 0 AND current_stock / avg_daily_demand <= 14 THEN 'MEDIUM'
-                ELSE 'LOW'
-            END as urgency_level
-        FROM current_inventory
-        WHERE avg_daily_demand > 0 AND current_stock > 0
-        ORDER BY days_until_stockout ASC
-        LIMIT 50;
-        """
-        return _self._execute_query(sql)
-
-
-class PredictiveForecastingEngine:
-    """Predictive forecasting engine for demand trends and seasonality."""
-    
-    def __init__(self, db_connection_func):
-        self.get_db_connection = db_connection_func
-    
-    def _execute_query(self, sql, params=None):
-        """Execute query using existing pattern."""
-        try:
-            return execute_query_for_dashboard(sql, params)
-        except Exception as e:
-            st.error(f"Query execution failed: {e}")
-            return None
-    
-    @st.cache_data(ttl=7200)
-    def forecast_demand_trends(_self, days_ahead=30):
-        """Analyze demand trends using linear regression."""
-        sql = """
-        WITH weekly_sales AS (
-            SELECT 
-                p.id as product_id,
-                p.name as product_name,
-                p.category,
-                DATE_TRUNC('week', t.created_at AT TIME ZONE 'Asia/Manila') as week_start,
-                SUM(ti.quantity) as weekly_quantity,
-                SUM(ti.quantity * ti.unit_price) as weekly_revenue
-            FROM products p
-            JOIN transaction_items ti ON p.id = ti.product_id
-            JOIN transactions t ON ti.transaction_id = t.id
-            WHERE t.transaction_type = 'sale' 
-                AND (t.is_cancelled = false OR t.is_cancelled IS NULL)
-                AND t.created_at AT TIME ZONE 'Asia/Manila' >= NOW() AT TIME ZONE 'Asia/Manila' - INTERVAL '12 weeks'
-            GROUP BY p.id, p.name, p.category, DATE_TRUNC('week', t.created_at AT TIME ZONE 'Asia/Manila')
-        ),
-        trend_analysis AS (
-            SELECT 
-                product_id,
-                product_name,
-                category,
-                COUNT(*) as weeks_count,
-                AVG(weekly_quantity) as avg_weekly_quantity,
-                STDDEV(weekly_quantity) as quantity_volatility,
-                -- Simple trend calculation
-                (MAX(weekly_quantity) - MIN(weekly_quantity)) / NULLIF(COUNT(*), 0) as trend_slope,
-                CASE 
-                    WHEN (MAX(weekly_quantity) - MIN(weekly_quantity)) / NULLIF(COUNT(*), 0) > 0.1 THEN 'UP'
-                    WHEN (MAX(weekly_quantity) - MIN(weekly_quantity)) / NULLIF(COUNT(*), 0) < -0.1 THEN 'DOWN'
-                    ELSE 'STABLE'
-                END as trend_direction,
-                -- Confidence based on consistency
-                CASE 
-                    WHEN STDDEV(weekly_quantity) / NULLIF(AVG(weekly_quantity), 0) < 0.3 THEN 'HIGH'
-                    WHEN STDDEV(weekly_quantity) / NULLIF(AVG(weekly_quantity), 0) < 0.6 THEN 'MEDIUM'
-                    ELSE 'LOW'
-                END as confidence_level
-            FROM weekly_sales
-            GROUP BY product_id, product_name, category
-        )
-        SELECT 
-            product_id,
-            product_name,
-            category,
-            weeks_count,
-            avg_weekly_quantity,
-            quantity_volatility,
-            trend_slope,
-            trend_direction,
-            confidence_level
-        FROM trend_analysis
-        WHERE weeks_count >= 4  -- At least 4 weeks of data
-        ORDER BY ABS(trend_slope) DESC
-        LIMIT 50;
-        """
-        return _self._execute_query(sql)
-    
-    @st.cache_data(ttl=3600)
-    def identify_seasonal_products(_self):
-        """Identify products with seasonal sales patterns."""
-        sql = """
-        WITH monthly_sales AS (
-            SELECT 
-                p.id as product_id,
-                p.name as product_name,
-                p.category,
-                EXTRACT(MONTH FROM t.created_at AT TIME ZONE 'Asia/Manila') as month,
-                EXTRACT(YEAR FROM t.created_at AT TIME ZONE 'Asia/Manila') as year,
-                SUM(ti.quantity) as monthly_quantity,
-                SUM(ti.quantity * ti.unit_price) as monthly_revenue
-            FROM products p
-            JOIN transaction_items ti ON p.id = ti.product_id
-            JOIN transactions t ON ti.transaction_id = t.id
-            WHERE t.transaction_type = 'sale' 
-                AND (t.is_cancelled = false OR t.is_cancelled IS NULL)
-                AND t.created_at AT TIME ZONE 'Asia/Manila' >= NOW() AT TIME ZONE 'Asia/Manila' - INTERVAL '24 months'
-            GROUP BY p.id, p.name, p.category, 
-                     EXTRACT(MONTH FROM t.created_at AT TIME ZONE 'Asia/Manila'),
-                     EXTRACT(YEAR FROM t.created_at AT TIME ZONE 'Asia/Manila')
-        ),
-        seasonal_analysis AS (
-            SELECT 
-                product_id,
-                product_name,
-                category,
-                COUNT(*) as months_count,
-                AVG(monthly_quantity) as avg_monthly_quantity,
-                STDDEV(monthly_quantity) as quantity_stddev,
-                -- Coefficient of variation for seasonality detection
-                CASE 
-                    WHEN AVG(monthly_quantity) > 0 THEN STDDEV(monthly_quantity) / AVG(monthly_quantity)
-                    ELSE 0
-                END as coefficient_of_variation,
-                -- Peak month detection
-                MODE() WITHIN GROUP (ORDER BY month) as peak_month,
-                -- Seasonal strength
-                CASE 
-                    WHEN STDDEV(monthly_quantity) / NULLIF(AVG(monthly_quantity), 0) > 0.5 THEN 'HIGH'
-                    WHEN STDDEV(monthly_quantity) / NULLIF(AVG(monthly_quantity), 0) > 0.3 THEN 'MEDIUM'
-                    ELSE 'LOW'
-                END as seasonal_strength
-            FROM monthly_sales
-            GROUP BY product_id, product_name, category
-        )
-        SELECT 
-            product_id,
-            product_name,
-            category,
-            months_count,
-            avg_monthly_quantity,
-            quantity_stddev,
-            coefficient_of_variation,
-            peak_month,
-            seasonal_strength,
-            CASE peak_month
-                WHEN 12 THEN 'December (Holiday)'
-                WHEN 1 THEN 'January (Post-Holiday)'
-                WHEN 6 THEN 'June (Summer)'
-                WHEN 7 THEN 'July (Summer)'
-                WHEN 8 THEN 'August (Back to School)'
-                ELSE 'Other'
-            END as season_description
-        FROM seasonal_analysis
-        WHERE months_count >= 12  -- At least 12 months of data
-        ORDER BY coefficient_of_variation DESC
-        LIMIT 50;
-        """
-        return _self._execute_query(sql)
-    
-    @st.cache_data(ttl=1800)
-    def analyze_product_lifecycle(_self):
-        """Analyze product lifecycle stages based on sales patterns."""
-        sql = """
-        WITH product_sales_timeline AS (
-            SELECT 
-                p.id as product_id,
-                p.name as product_name,
-                p.category,
-                DATE_TRUNC('month', t.created_at AT TIME ZONE 'Asia/Manila') as month,
-                SUM(ti.quantity) as monthly_quantity,
-                SUM(ti.quantity * ti.unit_price) as monthly_revenue,
-                COUNT(DISTINCT t.id) as transaction_count
-            FROM products p
-            JOIN transaction_items ti ON p.id = ti.product_id
-            JOIN transactions t ON ti.transaction_id = t.id
-            WHERE t.transaction_type = 'sale' 
-                AND (t.is_cancelled = false OR t.is_cancelled IS NULL)
-            GROUP BY p.id, p.name, p.category, DATE_TRUNC('month', t.created_at AT TIME ZONE 'Asia/Manila')
-        ),
-        lifecycle_metrics AS (
-            SELECT 
-                product_id,
-                product_name,
-                category,
-                COUNT(*) as months_active,
-                AVG(monthly_quantity) as avg_monthly_quantity,
-                AVG(monthly_revenue) as avg_monthly_revenue,
-                STDDEV(monthly_quantity) as quantity_volatility,
-                -- Growth rate calculation
-                CASE 
-                    WHEN COUNT(*) > 1 THEN 
-                        (MAX(monthly_quantity) - MIN(monthly_quantity)) / NULLIF(COUNT(*), 0)
-                    ELSE 0
-                END as growth_rate,
-                -- Recent vs historical performance
-                AVG(CASE WHEN month >= DATE_TRUNC('month', NOW() AT TIME ZONE 'Asia/Manila' - INTERVAL '3 months') 
-                         THEN monthly_quantity END) as recent_avg_quantity,
-                AVG(CASE WHEN month < DATE_TRUNC('month', NOW() AT TIME ZONE 'Asia/Manila' - INTERVAL '3 months') 
-                         THEN monthly_quantity END) as historical_avg_quantity
-            FROM product_sales_timeline
-            GROUP BY product_id, product_name, category
-        )
-        SELECT 
-            product_id,
-            product_name,
-            category,
-            months_active,
-            avg_monthly_quantity,
-            avg_monthly_revenue,
-            quantity_volatility,
-            growth_rate,
-            recent_avg_quantity,
-            historical_avg_quantity,
-            -- Lifecycle stage classification
-            CASE 
-                WHEN months_active <= 3 AND growth_rate > 0.1 THEN 'Introduction'
-                WHEN months_active <= 6 AND growth_rate > 0.05 THEN 'Growth'
-                WHEN months_active > 6 AND ABS(growth_rate) < 0.05 THEN 'Maturity'
-                WHEN recent_avg_quantity < historical_avg_quantity * 0.7 THEN 'Decline'
-                ELSE 'Maturity'
-            END as lifecycle_stage,
-            -- Performance score
-            CASE 
-                WHEN recent_avg_quantity > historical_avg_quantity * 1.2 THEN 'EXCELLENT'
-                WHEN recent_avg_quantity > historical_avg_quantity * 1.0 THEN 'GOOD'
-                WHEN recent_avg_quantity > historical_avg_quantity * 0.8 THEN 'STABLE'
-                ELSE 'DECLINING'
-            END as performance_score
-        FROM lifecycle_metrics
-        WHERE months_active >= 3  -- At least 3 months of data
-        ORDER BY avg_monthly_revenue DESC
-        LIMIT 50;
-        """
-        return _self._execute_query(sql)
-
-
-class CustomerIntelligenceEngine:
-    """Customer intelligence engine for shopping patterns and segmentation."""
-    
-    def __init__(self, db_connection_func):
-        self.get_db_connection = db_connection_func
-    
-    def _execute_query(self, sql, params=None):
-        """Execute query using existing pattern."""
-        try:
-            return execute_query_for_dashboard(sql, params)
-        except Exception as e:
-            st.error(f"Query execution failed: {e}")
-            return None
-    
-    @st.cache_data(ttl=3600)
-    def analyze_shopping_patterns(_self):
-        """Analyze shopping patterns by day of week and hour."""
-        sql = """
-        SELECT 
-            EXTRACT(DOW FROM t.created_at AT TIME ZONE 'Asia/Manila') as day_of_week,
-            EXTRACT(HOUR FROM t.created_at AT TIME ZONE 'Asia/Manila') as hour_of_day,
-            COUNT(DISTINCT t.id) as transaction_count,
-            SUM(t.total) as total_revenue,
-            AVG(t.total) as avg_transaction_value,
-            COUNT(DISTINCT t.customer_id) as unique_customers
-        FROM transactions t
-        WHERE t.transaction_type = 'sale' 
-            AND (t.is_cancelled = false OR t.is_cancelled IS NULL)
-            AND t.created_at AT TIME ZONE 'Asia/Manila' >= NOW() AT TIME ZONE 'Asia/Manila' - INTERVAL '30 days'
-        GROUP BY EXTRACT(DOW FROM t.created_at AT TIME ZONE 'Asia/Manila'),
-                 EXTRACT(HOUR FROM t.created_at AT TIME ZONE 'Asia/Manila')
-        ORDER BY day_of_week, hour_of_day;
-        """
-        return _self._execute_query(sql)
-    
-    @st.cache_data(ttl=3600) 
-    def perform_basket_analysis(_self):
-        """Find frequently co-purchased product pairs."""
-        sql = """
-        WITH transaction_products AS (
-            SELECT 
-                t.id as transaction_id,
-                t.created_at AT TIME ZONE 'Asia/Manila' as transaction_date,
-                ARRAY_AGG(ti.product_id ORDER BY ti.product_id) as product_ids,
-                ARRAY_AGG(p.name ORDER BY ti.product_id) as product_names
-            FROM transactions t
-            JOIN transaction_items ti ON t.id = ti.transaction_id
-            JOIN products p ON ti.product_id = p.id
-            WHERE t.transaction_type = 'sale' 
-                AND (t.is_cancelled = false OR t.is_cancelled IS NULL)
-                AND t.created_at AT TIME ZONE 'Asia/Manila' >= NOW() AT TIME ZONE 'Asia/Manila' - INTERVAL '90 days'
-            GROUP BY t.id, t.created_at AT TIME ZONE 'Asia/Manila'
-            HAVING COUNT(*) > 1  -- Only transactions with multiple products
-        ),
-        product_pairs AS (
-            SELECT 
-                tp1.product_ids[1] as product1_id,
-                tp1.product_names[1] as product1_name,
-                tp1.product_ids[2] as product2_id,
-                tp1.product_names[2] as product2_name,
-                COUNT(*) as co_occurrence_count
-            FROM transaction_products tp1
-            WHERE array_length(tp1.product_ids, 1) >= 2
-            GROUP BY tp1.product_ids[1], tp1.product_names[1], tp1.product_ids[2], tp1.product_names[2]
-        )
-        SELECT 
-            product1_id,
-            product1_name,
-            product2_id,
-            product2_name,
-            co_occurrence_count,
-            CASE 
-                WHEN co_occurrence_count >= 10 THEN 'HIGH'
-                WHEN co_occurrence_count >= 5 THEN 'MEDIUM'
-                ELSE 'LOW'
-            END as association_strength
-        FROM product_pairs
-        WHERE product1_id != product2_id
-        ORDER BY co_occurrence_count DESC
-        LIMIT 50;
-        """
-        return _self._execute_query(sql)
-    
-    @st.cache_data(ttl=7200)
-    def segment_customers(_self):
-        """Perform RFM analysis for customer segmentation."""
-        sql = """
-        WITH customer_metrics AS (
-            SELECT 
-                t.customer_id,
-                COUNT(DISTINCT t.id) as frequency,
-                SUM(t.total) as monetary,
-                MAX(t.created_at AT TIME ZONE 'Asia/Manila') as last_purchase_date,
-                EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'Asia/Manila' - MAX(t.created_at AT TIME ZONE 'Asia/Manila'))) / 86400 as recency_days
-            FROM transactions t
-            WHERE t.transaction_type = 'sale' 
-                AND (t.is_cancelled = false OR t.is_cancelled IS NULL)
-                AND t.customer_id IS NOT NULL
-            GROUP BY t.customer_id
-        ),
-        rfm_scores AS (
-            SELECT 
-                customer_id,
-                frequency,
-                monetary,
-                recency_days,
-                -- Recency score (1-5, 5 being most recent)
-                CASE 
-                    WHEN recency_days <= 7 THEN 5
-                    WHEN recency_days <= 30 THEN 4
-                    WHEN recency_days <= 90 THEN 3
-                    WHEN recency_days <= 180 THEN 2
-                    ELSE 1
-                END as recency_score,
-                -- Frequency score (1-5, 5 being most frequent)
-                CASE 
-                    WHEN frequency >= 10 THEN 5
-                    WHEN frequency >= 5 THEN 4
-                    WHEN frequency >= 3 THEN 3
-                    WHEN frequency >= 2 THEN 2
-                    ELSE 1
-                END as frequency_score,
-                -- Monetary score (1-5, 5 being highest value)
-                CASE 
-                    WHEN monetary >= 10000 THEN 5
-                    WHEN monetary >= 5000 THEN 4
-                    WHEN monetary >= 2000 THEN 3
-                    WHEN monetary >= 1000 THEN 2
-                    ELSE 1
-                END as monetary_score
-            FROM customer_metrics
-        )
-        SELECT 
-            customer_id,
-            frequency,
-            monetary,
-            recency_days,
-            recency_score,
-            frequency_score,
-            monetary_score,
-            (recency_score + frequency_score + monetary_score) as rfm_score,
-            CASE 
-                WHEN (recency_score + frequency_score + monetary_score) >= 13 THEN 'Champions'
-                WHEN (recency_score + frequency_score + monetary_score) >= 11 THEN 'Loyal Customers'
-                WHEN (recency_score + frequency_score + monetary_score) >= 9 THEN 'At Risk'
-                WHEN (recency_score + frequency_score + monetary_score) >= 7 THEN 'Can\'t Lose'
-                ELSE 'Lost'
-            END as customer_segment
-        FROM rfm_scores
-        ORDER BY rfm_score DESC
-        LIMIT 100;
-        """
-        return _self._execute_query(sql)
-
-
-class MarketIntelligenceEngine:
-    """Market intelligence engine for price elasticity and opportunities."""
-    
-    def __init__(self, db_connection_func):
-        self.get_db_connection = db_connection_func
-    
-    def _execute_query(self, sql, params=None):
-        """Execute query using existing pattern."""
-        try:
-            return execute_query_for_dashboard(sql, params)
-        except Exception as e:
-            st.error(f"Query execution failed: {e}")
-            return None
-    
-    @st.cache_data(ttl=3600)
-    def analyze_price_elasticity(_self):
-        """Analyze price elasticity based on sales volume at different price points."""
-        sql = """
-        WITH price_points AS (
-            SELECT 
-                p.id as product_id,
-                p.name as product_name,
-                p.category,
-                ti.unit_price,
-                SUM(ti.quantity) as quantity_sold,
-                COUNT(DISTINCT t.id) as transaction_count,
-                AVG(ti.quantity) as avg_quantity_per_transaction
-            FROM products p
-            JOIN transaction_items ti ON p.id = ti.product_id
-            JOIN transactions t ON ti.transaction_id = t.id
-            WHERE t.transaction_type = 'sale' 
-                AND (t.is_cancelled = false OR t.is_cancelled IS NULL)
-                AND t.created_at AT TIME ZONE 'Asia/Manila' >= NOW() AT TIME ZONE 'Asia/Manila' - INTERVAL '90 days'
-            GROUP BY p.id, p.name, p.category, ti.unit_price
-        ),
-        elasticity_analysis AS (
-            SELECT 
-                product_id,
-                product_name,
-                category,
-                COUNT(*) as price_points_count,
-                MIN(unit_price) as min_price,
-                MAX(unit_price) as max_price,
-                AVG(unit_price) as avg_price,
-                SUM(quantity_sold) as total_quantity,
-                AVG(quantity_sold) as avg_quantity_per_price,
-                -- Simple elasticity calculation
-                CASE 
-                    WHEN MAX(unit_price) > MIN(unit_price) THEN
-                        ((MAX(quantity_sold) - MIN(quantity_sold)) / NULLIF(AVG(quantity_sold), 0)) /
-                        ((MAX(unit_price) - MIN(unit_price)) / NULLIF(AVG(unit_price), 0))
-                    ELSE NULL
-                END as price_elasticity
-            FROM price_points
-            GROUP BY product_id, product_name, category
-        )
-        SELECT 
-            product_id,
-            product_name,
-            category,
-            price_points_count,
-            min_price,
-            max_price,
-            avg_price,
-            total_quantity,
-            avg_quantity_per_price,
-            price_elasticity,
-            CASE 
-                WHEN ABS(price_elasticity) > 2 THEN 'HIGHLY_ELASTIC'
-                WHEN ABS(price_elasticity) > 1 THEN 'ELASTIC'
-                WHEN ABS(price_elasticity) > 0.5 THEN 'MODERATE'
-                ELSE 'INELASTIC'
-            END as elasticity_category
-        FROM elasticity_analysis
-        WHERE price_points_count >= 2  -- At least 2 different price points
-        ORDER BY ABS(price_elasticity) DESC
-        LIMIT 50;
-        """
-        return _self._execute_query(sql)
-    
-    @st.cache_data(ttl=3600)
-    def detect_market_opportunities(_self):
-        """Detect market opportunities through category analysis."""
-        sql = """
-        WITH category_performance AS (
-            SELECT 
-                p.category,
-                COUNT(DISTINCT p.id) as product_count,
-                COUNT(DISTINCT t.id) as transaction_count,
-                SUM(ti.quantity) as total_quantity_sold,
-                SUM(ti.quantity * ti.unit_price) as total_revenue,
-                AVG(ti.unit_price) as avg_unit_price,
-                COUNT(DISTINCT t.customer_id) as unique_customers
-            FROM products p
-            LEFT JOIN transaction_items ti ON p.id = ti.product_id
-            LEFT JOIN transactions t ON ti.transaction_id = t.id
-            WHERE (t.transaction_type = 'sale' AND (t.is_cancelled = false OR t.is_cancelled IS NULL))
-                OR t.id IS NULL
-            GROUP BY p.category
-        ),
-        category_growth AS (
-            SELECT 
-                cp.*,
-                -- Revenue per product
-                CASE 
-                    WHEN product_count > 0 THEN total_revenue / product_count
-                    ELSE 0
-                END as revenue_per_product,
-                -- Customer engagement
-                CASE 
-                    WHEN product_count > 0 THEN unique_customers / product_count
-                    ELSE 0
-                END as customers_per_product
-            FROM category_performance cp
-        )
-        SELECT 
-            category,
-            product_count,
-            transaction_count,
-            total_quantity_sold,
-            total_revenue,
-            avg_unit_price,
-            unique_customers,
-            revenue_per_product,
-            customers_per_product,
-            -- Opportunity score
-            (total_revenue * 0.4) + (unique_customers * 0.3) + (revenue_per_product * 0.3) as opportunity_score,
-            CASE 
-                WHEN total_revenue > 100000 AND unique_customers > 50 THEN 'HIGH_POTENTIAL'
-                WHEN total_revenue > 50000 AND unique_customers > 25 THEN 'MEDIUM_POTENTIAL'
-                ELSE 'LOW_POTENTIAL'
-            END as opportunity_level
-        FROM category_growth
-        ORDER BY opportunity_score DESC;
-        """
-        return _self._execute_query(sql)
-
-
-class SmartAlertManager:
-    """Smart alert manager for real-time business alerts."""
-    
-    def __init__(self, db_connection_func):
-        self.get_db_connection = db_connection_func
-    
-    def _execute_query(self, sql, params=None):
-        """Execute query using existing pattern."""
-        try:
-            return execute_query_for_dashboard(sql, params)
-        except Exception as e:
-            st.error(f"Query execution failed: {e}")
-            return None
-    
-    @st.cache_data(ttl=900)
-    def get_active_alerts(_self):
-        """Get active business alerts."""
-        sql = """
-        WITH stockout_alerts AS (
-            SELECT 
-                p.id as product_id,
-                p.name as product_name,
-                p.sku,
-                p.category,
-                COALESCE(SUM(i.quantity), 0) as current_stock,
-                'STOCKOUT' as alert_type,
-                '🔴' as icon,
-                CASE 
-                    WHEN COALESCE(SUM(i.quantity), 0) = 0 THEN 'Critical: Product out of stock'
-                    WHEN COALESCE(SUM(i.quantity), 0) <= 5 THEN 'Warning: Low stock level'
-                    ELSE 'Info: Stock level normal'
-                END as message,
-                CASE 
-                    WHEN COALESCE(SUM(i.quantity), 0) = 0 THEN 'CRITICAL'
-                    WHEN COALESCE(SUM(i.quantity), 0) <= 5 THEN 'HIGH'
-                    ELSE 'LOW'
-                END as urgency
-            FROM products p
-            LEFT JOIN inventory i ON p.id = i.product_id
-            GROUP BY p.id, p.name, p.sku, p.category
-            HAVING COALESCE(SUM(i.quantity), 0) <= 5
-        ),
-        demand_alerts AS (
-            SELECT 
-                p.id as product_id,
-                p.name as product_name,
-                p.sku,
-                p.category,
-                AVG(ti.quantity) as avg_daily_demand,
-                'DEMAND_SPIKE' as alert_type,
-                '📈' as icon,
-                'High demand detected for this product' as message,
-                'MEDIUM' as urgency
-            FROM products p
-            JOIN transaction_items ti ON p.id = ti.product_id
-            JOIN transactions t ON ti.transaction_id = t.id
-            WHERE t.transaction_type = 'sale' 
-                AND (t.is_cancelled = false OR t.is_cancelled IS NULL)
-                AND t.created_at AT TIME ZONE 'Asia/Manila' >= NOW() AT TIME ZONE 'Asia/Manila' - INTERVAL '7 days'
-            GROUP BY p.id, p.name, p.sku, p.category
-            HAVING AVG(ti.quantity) > 10  -- High daily demand
-        )
-        SELECT * FROM stockout_alerts
-        UNION ALL
-        SELECT * FROM demand_alerts
-        ORDER BY urgency DESC, product_name;
-        """
-        return _self._execute_query(sql)
-
-
-class AutomatedInsightEngine:
-    """Automated insight engine using AI for business intelligence."""
-    
-    def __init__(self, db_connection_func, claude_client_func):
-        self.get_db_connection = db_connection_func
-        self.get_claude_client = claude_client_func
-    
-    def _execute_query(self, sql, params=None):
-        """Execute query using existing pattern."""
-        try:
-            return execute_query_for_dashboard(sql, params)
-        except Exception as e:
-            st.error(f"Query execution failed: {e}")
-            return None
-    
-    @st.cache_data(ttl=3600)
-    def generate_weekly_business_review(_self):
-        """Generate weekly business review using AI."""
-        # Get current vs previous week metrics
-        sql = """
-        WITH current_week AS (
-            SELECT 
-                COUNT(DISTINCT t.id) as transaction_count,
-                SUM(t.total) as total_revenue,
-                COUNT(DISTINCT t.customer_id) as unique_customers,
-                AVG(t.total) as avg_transaction_value
-            FROM transactions t
-            WHERE t.transaction_type = 'sale' 
-                AND (t.is_cancelled = false OR t.is_cancelled IS NULL)
-                AND t.created_at AT TIME ZONE 'Asia/Manila' >= DATE_TRUNC('week', NOW() AT TIME ZONE 'Asia/Manila')
-        ),
-        previous_week AS (
-            SELECT 
-                COUNT(DISTINCT t.id) as transaction_count,
-                SUM(t.total) as total_revenue,
-                COUNT(DISTINCT t.customer_id) as unique_customers,
-                AVG(t.total) as avg_transaction_value
-            FROM transactions t
-            WHERE t.transaction_type = 'sale' 
-                AND (t.is_cancelled = false OR t.is_cancelled IS NULL)
-                AND t.created_at AT TIME ZONE 'Asia/Manila' >= DATE_TRUNC('week', NOW() AT TIME ZONE 'Asia/Manila' - INTERVAL '1 week')
-                AND t.created_at AT TIME ZONE 'Asia/Manila' < DATE_TRUNC('week', NOW() AT TIME ZONE 'Asia/Manila')
-        )
-        SELECT 
-            cw.transaction_count as current_transactions,
-            pw.transaction_count as previous_transactions,
-            cw.total_revenue as current_revenue,
-            pw.total_revenue as previous_revenue,
-            cw.unique_customers as current_customers,
-            pw.unique_customers as previous_customers,
-            cw.avg_transaction_value as current_avg_value,
-            pw.avg_transaction_value as previous_avg_value
-        FROM current_week cw
-        CROSS JOIN previous_week pw;
-        """
-        
-        metrics = _self._execute_query(sql)
-        if not metrics or metrics.empty:
-            return "Unable to generate weekly review - insufficient data."
-        
-        # Generate AI insights
-        client = _self.get_claude_client()
-        if not client:
-            return "Unable to generate AI insights - Claude client not available."
-        
-        try:
-            row = metrics.iloc[0]
-            prompt = f"""
-            Generate a concise weekly business review based on these metrics:
-            
-            Current Week vs Previous Week:
-            - Transactions: {row['current_transactions']} vs {row['previous_transactions']}
-            - Revenue: ₱{row['current_revenue']:,.2f} vs ₱{row['previous_revenue']:,.2f}
-            - Unique Customers: {row['current_customers']} vs {row['previous_customers']}
-            - Avg Transaction Value: ₱{row['current_avg_value']:,.2f} vs ₱{row['previous_avg_value']:,.2f}
-            
-            Provide 3-4 key insights and 2-3 actionable recommendations in a business-friendly tone.
-            """
-            
-            response = client.messages.create(
-                model="claude-3-5-sonnet-20240620",
-                max_tokens=500,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            
-            return response.content[0].text.strip()
-            
-        except Exception as e:
-            return f"AI insight generation failed: {e}"
-    
-    @st.cache_data(ttl=1800)
-    def create_predictive_alerts(_self):
-        """Create predictive alerts for trending products."""
-        sql = """
-        WITH trending_products AS (
-            SELECT 
-                p.id as product_id,
-                p.name as product_name,
-                p.category,
-                COUNT(DISTINCT t.id) as recent_transactions,
-                SUM(ti.quantity) as recent_quantity,
-                AVG(ti.quantity) as avg_quantity_per_transaction
-            FROM products p
-            JOIN transaction_items ti ON p.id = ti.product_id
-            JOIN transactions t ON ti.transaction_id = t.id
-            WHERE t.transaction_type = 'sale' 
-                AND (t.is_cancelled = false OR t.is_cancelled IS NULL)
-                AND t.created_at AT TIME ZONE 'Asia/Manila' >= NOW() AT TIME ZONE 'Asia/Manila' - INTERVAL '7 days'
-            GROUP BY p.id, p.name, p.category
-            HAVING COUNT(DISTINCT t.id) >= 3  -- At least 3 transactions in a week
-        )
-        SELECT 
-            product_id,
-            product_name,
-            category,
-            recent_transactions,
-            recent_quantity,
-            avg_quantity_per_transaction,
-            CASE 
-                WHEN recent_transactions >= 10 THEN 'TRENDING'
-                WHEN recent_transactions >= 5 THEN 'RISING'
-                ELSE 'STABLE'
-            END as trend_status
-        FROM trending_products
-        ORDER BY recent_transactions DESC
-        LIMIT 20;
-        """
-        return _self._execute_query(sql)
-
-
-# --- ADVANCED DATA TAB ---
-
-def render_advanced_data():
-    """Render the Advanced Data Analytics page."""
-    st.markdown('<div class="main-header"><h1>🔬 Advanced Data Analytics</h1><p>AI-powered business intelligence and predictive analytics</p></div>', unsafe_allow_html=True)
-    
-    # Initialize analytics engines
-    ai_analytics = AIAnalyticsEngine(create_db_connection)
-    predictive_forecasting = PredictiveForecastingEngine(create_db_connection)
-    customer_intelligence = CustomerIntelligenceEngine(create_db_connection)
-    market_intelligence = MarketIntelligenceEngine(create_db_connection)
-    smart_alerts = SmartAlertManager(create_db_connection)
-    automated_insights = AutomatedInsightEngine(create_db_connection, get_claude_client)
-    
-    # Header with Status Metrics
-    st.subheader("📊 Analytics Status Dashboard")
-    
-    # Get status metrics
-    with st.spinner("Loading analytics status..."):
-        try:
-            # Sample metrics - in a real implementation, these would be calculated
-            learning_examples = 150
-            forecast_accuracy = 87.5
-            active_alerts = len(smart_alerts.get_active_alerts() or [])
-            trends_detected = 12
-            opportunities = 8
-            performance_score = 92.3
-            
-            col1, col2, col3, col4, col5, col6 = st.columns(6)
-            
-            with col1:
-                st.metric("Learning Examples", f"{learning_examples}", "📚")
-            with col2:
-                st.metric("Forecast Accuracy", f"{forecast_accuracy}%", "🎯")
-            with col3:
-                st.metric("Active Alerts", f"{active_alerts}", "🚨")
-            with col4:
-                st.metric("Trends Detected", f"{trends_detected}", "📈")
-            with col5:
-                st.metric("Opportunities", f"{opportunities}", "💡")
-            with col6:
-                st.metric("Performance Score", f"{performance_score}%", "⭐")
-                
-        except Exception as e:
-            st.error(f"Error loading status metrics: {e}")
-    
-    # Sub-tabs Structure
-    tabs = st.tabs([
-        "📊 Analytics Suite", 
-        "🔮 Forecasting", 
-        "🎯 Customer Intel", 
-        "💡 Auto Insights", 
-        "🚨 Smart Alerts"
-    ])
-    
-    # Analytics Suite Tab
-    with tabs[0]:
-        st.subheader("📊 Advanced Analytics Suite")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("### 🔍 Hidden Demand Detection")
-            with st.spinner("Analyzing hidden demand patterns..."):
-                hidden_demand = ai_analytics.detect_hidden_demand()
-                if hidden_demand is not None and not hidden_demand.empty:
-                    # Color-code the scores
-                    def color_score(val):
-                        if val >= 150:
-                            return "🔴 Critical"
-                        elif val >= 100:
-                            return "🟠 High"
-                        elif val >= 50:
-                            return "🟡 Medium"
-                        else:
-                            return "🟢 Low"
-                    
-                    hidden_demand['demand_level'] = hidden_demand['hidden_demand_score'].apply(color_score)
-                    
-                    st.dataframe(
-                        hidden_demand[['product_name', 'category', 'current_stock', 'stock_status', 'demand_level']].head(10),
-                        column_config={
-                            "product_name": st.column_config.TextColumn("Product", width="large"),
-                            "category": st.column_config.TextColumn("Category", width="medium"),
-                            "current_stock": st.column_config.NumberColumn("Current Stock", format="%d"),
-                            "stock_status": st.column_config.TextColumn("Status", width="medium"),
-                            "demand_level": st.column_config.TextColumn("Demand Level", width="medium"),
-                        },
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                    
-                    if st.button("🔄 Refresh Analysis", key="refresh_hidden_demand"):
-                        st.cache_data.clear()
-                        st.rerun()
-                else:
-                    st.info("No hidden demand patterns detected.")
-        
-        with col2:
-            st.markdown("### ⚠️ Stockout Predictions")
-            with st.spinner("Predicting potential stockouts..."):
-                stockout_predictions = ai_analytics.predict_stockouts()
-                if stockout_predictions is not None and not stockout_predictions.empty:
-                    # Color-code urgency levels
-                    def color_urgency(val):
-                        if val == 'CRITICAL':
-                            return "🔴 Critical"
-                        elif val == 'HIGH':
-                            return "🟠 High"
-                        elif val == 'MEDIUM':
-                            return "🟡 Medium"
-                        else:
-                            return "🟢 Low"
-                    
-                    stockout_predictions['urgency_display'] = stockout_predictions['urgency_level'].apply(color_urgency)
-                    
-                    st.dataframe(
-                        stockout_predictions[['product_name', 'category', 'current_stock', 'days_until_stockout', 'urgency_display']].head(10),
-                        column_config={
-                            "product_name": st.column_config.TextColumn("Product", width="large"),
-                            "category": st.column_config.TextColumn("Category", width="medium"),
-                            "current_stock": st.column_config.NumberColumn("Current Stock", format="%d"),
-                            "days_until_stockout": st.column_config.NumberColumn("Days Until Stockout", format="%.1f"),
-                            "urgency_display": st.column_config.TextColumn("Urgency", width="medium"),
-                        },
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                    
-                    if st.button("🔄 Refresh Predictions", key="refresh_stockouts"):
-                        st.cache_data.clear()
-                        st.rerun()
-                else:
-                    st.info("No stockout predictions available.")
-    
-    # Forecasting Tab
-    with tabs[1]:
-        st.subheader("🔮 Predictive Forecasting")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("### 📈 Demand Trend Analysis")
-            with st.spinner("Analyzing demand trends..."):
-                demand_trends = predictive_forecasting.forecast_demand_trends()
-                if demand_trends is not None and not demand_trends.empty:
-                    # Color-code trend directions
-                    def color_trend(val):
-                        if val == 'UP':
-                            return "🟢 UP"
-                        elif val == 'DOWN':
-                            return "🔴 DOWN"
-                        else:
-                            return "🟡 STABLE"
-                    
-                    demand_trends['trend_display'] = demand_trends['trend_direction'].apply(color_trend)
-                    
-                    st.dataframe(
-                        demand_trends[['product_name', 'category', 'trend_display', 'confidence_level', 'avg_weekly_quantity']].head(10),
-                        column_config={
-                            "product_name": st.column_config.TextColumn("Product", width="large"),
-                            "category": st.column_config.TextColumn("Category", width="medium"),
-                            "trend_display": st.column_config.TextColumn("Trend", width="medium"),
-                            "confidence_level": st.column_config.TextColumn("Confidence", width="medium"),
-                            "avg_weekly_quantity": st.column_config.NumberColumn("Avg Weekly Qty", format="%.1f"),
-                        },
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                else:
-                    st.info("No demand trend data available.")
-        
-        with col2:
-            st.markdown("### 🌸 Seasonal Product Analysis")
-            with st.spinner("Identifying seasonal patterns..."):
-                seasonal_products = predictive_forecasting.identify_seasonal_products()
-                if seasonal_products is not None and not seasonal_products.empty:
-                    st.dataframe(
-                        seasonal_products[['product_name', 'category', 'seasonal_strength', 'peak_month', 'season_description']].head(10),
-                        column_config={
-                            "product_name": st.column_config.TextColumn("Product", width="large"),
-                            "category": st.column_config.TextColumn("Category", width="medium"),
-                            "seasonal_strength": st.column_config.TextColumn("Seasonal Strength", width="medium"),
-                            "peak_month": st.column_config.NumberColumn("Peak Month", format="%d"),
-                            "season_description": st.column_config.TextColumn("Season", width="medium"),
-                        },
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                else:
-                    st.info("No seasonal product data available.")
-        
-        # Product Lifecycle Analysis
-        st.markdown("### 📊 Product Lifecycle Analysis")
-        with st.spinner("Analyzing product lifecycles..."):
-            lifecycle_analysis = predictive_forecasting.analyze_product_lifecycle()
-            if lifecycle_analysis is not None and not lifecycle_analysis.empty:
-                # Color-code lifecycle stages
-                def color_lifecycle(val):
-                    if val == 'Introduction':
-                        return "🟢 Introduction"
-                    elif val == 'Growth':
-                        return "🟡 Growth"
-                    elif val == 'Maturity':
-                        return "🔵 Maturity"
-                    else:
-                        return "🔴 Decline"
-                
-                lifecycle_analysis['lifecycle_display'] = lifecycle_analysis['lifecycle_stage'].apply(color_lifecycle)
-                
-                st.dataframe(
-                    lifecycle_analysis[['product_name', 'category', 'lifecycle_display', 'performance_score', 'months_active']].head(15),
-                    column_config={
-                        "product_name": st.column_config.TextColumn("Product", width="large"),
-                        "category": st.column_config.TextColumn("Category", width="medium"),
-                        "lifecycle_display": st.column_config.TextColumn("Lifecycle Stage", width="medium"),
-                        "performance_score": st.column_config.TextColumn("Performance", width="medium"),
-                        "months_active": st.column_config.NumberColumn("Months Active", format="%d"),
-                    },
-                    hide_index=True,
-                    use_container_width=True
-                )
-            else:
-                st.info("No lifecycle analysis data available.")
-    
-    # Customer Intel Tab
-    with tabs[2]:
-        st.subheader("🎯 Customer Intelligence")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("### 🛒 Shopping Patterns Heatmap")
-            with st.spinner("Analyzing shopping patterns..."):
-                shopping_patterns = customer_intelligence.analyze_shopping_patterns()
-                if shopping_patterns is not None and not shopping_patterns.empty:
-                    # Create heatmap data
-                    days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-                    hours = list(range(24))
-                    
-                    # Create pivot table for heatmap
-                    heatmap_data = shopping_patterns.pivot_table(
-                        values='transaction_count', 
-                        index='day_of_week', 
-                        columns='hour_of_day', 
-                        fill_value=0
-                    )
-                    
-                    # Create heatmap
-                    fig = px.imshow(
-                        heatmap_data.values,
-                        x=hours,
-                        y=days,
-                        color_continuous_scale='Viridis',
-                        title="Shopping Patterns by Day and Hour"
-                    )
-                    fig.update_layout(
-                        xaxis_title="Hour of Day",
-                        yaxis_title="Day of Week",
-                        template="plotly_dark"
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("No shopping pattern data available.")
-        
-        with col2:
-            st.markdown("### 🛍️ Market Basket Analysis")
-            with st.spinner("Analyzing product associations..."):
-                basket_analysis = customer_intelligence.perform_basket_analysis()
-                if basket_analysis is not None and not basket_analysis.empty:
-                    st.dataframe(
-                        basket_analysis[['product1_name', 'product2_name', 'co_occurrence_count', 'association_strength']].head(10),
-                        column_config={
-                            "product1_name": st.column_config.TextColumn("Product 1", width="large"),
-                            "product2_name": st.column_config.TextColumn("Product 2", width="large"),
-                            "co_occurrence_count": st.column_config.NumberColumn("Co-occurrences", format="%d"),
-                            "association_strength": st.column_config.TextColumn("Strength", width="medium"),
-                        },
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                else:
-                    st.info("No basket analysis data available.")
-        
-        # Customer Segmentation
-        st.markdown("### 👥 Customer Segmentation (RFM Analysis)")
-        with st.spinner("Segmenting customers..."):
-            customer_segments = customer_intelligence.segment_customers()
-            if customer_segments is not None and not customer_segments.empty:
-                # Color-code customer segments
-                def color_segment(val):
-                    if val == 'Champions':
-                        return "🟢 Champions"
-                    elif val == 'Loyal Customers':
-                        return "🟡 Loyal"
-                    elif val == 'At Risk':
-                        return "🟠 At Risk"
-                    elif val == "Can't Lose":
-                        return "🔴 Can't Lose"
-                    else:
-                        return "⚫ Lost"
-                
-                customer_segments['segment_display'] = customer_segments['customer_segment'].apply(color_segment)
-                
-                st.dataframe(
-                    customer_segments[['customer_id', 'frequency', 'monetary', 'recency_days', 'segment_display']].head(15),
-                    column_config={
-                        "customer_id": st.column_config.TextColumn("Customer ID", width="medium"),
-                        "frequency": st.column_config.NumberColumn("Frequency", format="%d"),
-                        "monetary": st.column_config.NumberColumn("Monetary (₱)", format="₱%.2f"),
-                        "recency_days": st.column_config.NumberColumn("Recency (Days)", format="%.1f"),
-                        "segment_display": st.column_config.TextColumn("Segment", width="medium"),
-                    },
-                    hide_index=True,
-                    use_container_width=True
-                )
-            else:
-                st.info("No customer segmentation data available.")
-    
-    # Auto Insights Tab
-    with tabs[3]:
-        st.subheader("💡 Automated Insights")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("### 📊 Weekly Business Review")
-            with st.spinner("Generating AI-powered business review..."):
-                weekly_review = automated_insights.generate_weekly_business_review()
-                if weekly_review and weekly_review != "Unable to generate weekly review - insufficient data.":
-                    st.markdown("#### 🤖 AI-Generated Insights")
-                    st.write(weekly_review)
-                    
-                    if st.button("🔄 Generate New Review", key="refresh_review"):
-                        st.cache_data.clear()
-                        st.rerun()
-                else:
-                    st.info("Insufficient data for weekly business review.")
-        
-        with col2:
-            st.markdown("### 📈 Trending Products")
-            with st.spinner("Identifying trending products..."):
-                trending_products = automated_insights.create_predictive_alerts()
-                if trending_products is not None and not trending_products.empty:
-                    # Color-code trend status
-                    def color_trend_status(val):
-                        if val == 'TRENDING':
-                            return "🟢 TRENDING"
-                        elif val == 'RISING':
-                            return "🟡 RISING"
-                        else:
-                            return "🔵 STABLE"
-                    
-                    trending_products['trend_display'] = trending_products['trend_status'].apply(color_trend_status)
-                    
-                    st.dataframe(
-                        trending_products[['product_name', 'category', 'recent_transactions', 'trend_display']].head(10),
-                        column_config={
-                            "product_name": st.column_config.TextColumn("Product", width="large"),
-                            "category": st.column_config.TextColumn("Category", width="medium"),
-                            "recent_transactions": st.column_config.NumberColumn("Recent Transactions", format="%d"),
-                            "trend_display": st.column_config.TextColumn("Trend Status", width="medium"),
-                        },
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                else:
-                    st.info("No trending products detected.")
-        
-        # Market Intelligence
-        st.markdown("### 💰 Market Intelligence")
-        
-        col3, col4 = st.columns(2)
-        
-        with col3:
-            st.markdown("#### 📊 Price Elasticity Analysis")
-            with st.spinner("Analyzing price elasticity..."):
-                price_elasticity = market_intelligence.analyze_price_elasticity()
-                if price_elasticity is not None and not price_elasticity.empty:
-                    st.dataframe(
-                        price_elasticity[['product_name', 'category', 'elasticity_category', 'price_elasticity']].head(10),
-                        column_config={
-                            "product_name": st.column_config.TextColumn("Product", width="large"),
-                            "category": st.column_config.TextColumn("Category", width="medium"),
-                            "elasticity_category": st.column_config.TextColumn("Elasticity", width="medium"),
-                            "price_elasticity": st.column_config.NumberColumn("Elasticity Score", format="%.2f"),
-                        },
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                else:
-                    st.info("No price elasticity data available.")
-        
-        with col4:
-            st.markdown("#### 🎯 Market Opportunities")
-            with st.spinner("Detecting market opportunities..."):
-                market_opportunities = market_intelligence.detect_market_opportunities()
-                if market_opportunities is not None and not market_opportunities.empty:
-                    st.dataframe(
-                        market_opportunities[['category', 'total_revenue', 'unique_customers', 'opportunity_level']].head(10),
-                        column_config={
-                            "category": st.column_config.TextColumn("Category", width="large"),
-                            "total_revenue": st.column_config.NumberColumn("Total Revenue (₱)", format="₱%.2f"),
-                            "unique_customers": st.column_config.NumberColumn("Unique Customers", format="%d"),
-                            "opportunity_level": st.column_config.TextColumn("Opportunity Level", width="medium"),
-                        },
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                else:
-                    st.info("No market opportunity data available.")
-    
-    # Smart Alerts Tab
-    with tabs[4]:
-        st.subheader("🚨 Smart Alerts")
-        
-        st.markdown("### ⚠️ Active Business Alerts")
-        with st.spinner("Loading active alerts..."):
-            active_alerts = smart_alerts.get_active_alerts()
-            if active_alerts is not None and not active_alerts.empty:
-                # Separate critical and warning alerts
-                critical_alerts = active_alerts[active_alerts['urgency'] == 'CRITICAL']
-                warning_alerts = active_alerts[active_alerts['urgency'] == 'HIGH']
-                info_alerts = active_alerts[active_alerts['urgency'] == 'MEDIUM']
-                
-                if not critical_alerts.empty:
-                    st.error("🔴 Critical Alerts")
-                    st.dataframe(
-                        critical_alerts[['product_name', 'category', 'current_stock', 'message']],
-                        column_config={
-                            "product_name": st.column_config.TextColumn("Product", width="large"),
-                            "category": st.column_config.TextColumn("Category", width="medium"),
-                            "current_stock": st.column_config.NumberColumn("Current Stock", format="%d"),
-                            "message": st.column_config.TextColumn("Alert Message", width="large"),
-                        },
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                
-                if not warning_alerts.empty:
-                    st.warning("🟠 Warning Alerts")
-                    st.dataframe(
-                        warning_alerts[['product_name', 'category', 'current_stock', 'message']],
-                        column_config={
-                            "product_name": st.column_config.TextColumn("Product", width="large"),
-                            "category": st.column_config.TextColumn("Category", width="medium"),
-                            "current_stock": st.column_config.NumberColumn("Current Stock", format="%d"),
-                            "message": st.column_config.TextColumn("Alert Message", width="large"),
-                        },
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                
-                if not info_alerts.empty:
-                    st.info("🟡 Information Alerts")
-                    st.dataframe(
-                        info_alerts[['product_name', 'category', 'avg_daily_demand', 'message']],
-                        column_config={
-                            "product_name": st.column_config.TextColumn("Product", width="large"),
-                            "category": st.column_config.TextColumn("Category", width="medium"),
-                            "avg_daily_demand": st.column_config.NumberColumn("Avg Daily Demand", format="%.1f"),
-                            "message": st.column_config.TextColumn("Alert Message", width="large"),
-                        },
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                
-                if st.button("🔄 Refresh Alerts", key="refresh_alerts"):
-                    st.cache_data.clear()
-                    st.rerun()
-            else:
-                st.success("✅ No active alerts at this time.")
-        
-        # Alert Settings
-        st.markdown("### ⚙️ Alert Settings")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.checkbox("Enable Stockout Alerts", value=True, key="stockout_alerts")
-            st.checkbox("Enable Demand Spike Alerts", value=True, key="demand_alerts")
-            st.checkbox("Enable Trend Alerts", value=True, key="trend_alerts")
-        
-        with col2:
-            st.slider("Low Stock Threshold", 1, 20, 5, key="low_stock_threshold")
-            st.slider("Demand Spike Threshold", 5, 50, 10, key="demand_threshold")
-            st.slider("Alert Refresh Interval (minutes)", 5, 60, 15, key="alert_interval")
-
 
 # --- AI INTELLIGENCE HUB ---
 
