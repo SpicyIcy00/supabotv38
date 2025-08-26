@@ -16,31 +16,70 @@ class ResponsiveWrapper:
         Detect screen size using JavaScript and return size category.
         Returns: 'mobile', 'tablet', or 'desktop'
         """
-        # JavaScript to detect screen width
+        # JavaScript to detect screen width and update session state
         js_code = """
         <script>
-        function getScreenSize() {
+        function updateScreenSize() {
             const width = window.innerWidth;
-            if (width < 768) return 'mobile';
-            if (width < 1024) return 'tablet';
-            return 'desktop';
+            let size = 'desktop';
+            
+            if (width < 768) {
+                size = 'mobile';
+            } else if (width < 1024) {
+                size = 'tablet';
+            }
+            
+            // Try to communicate with Streamlit
+            try {
+                // Method 1: Direct communication
+                window.parent.postMessage({
+                    type: 'streamlit:setComponentValue',
+                    value: size
+                }, '*');
+                
+                // Method 2: Set session state via URL parameters
+                const url = new URL(window.location);
+                url.searchParams.set('screen_size', size);
+                window.history.replaceState({}, '', url);
+                
+                // Method 3: Store in localStorage as backup
+                localStorage.setItem('streamlit_screen_size', size);
+                
+            } catch (e) {
+                console.log('Could not communicate with Streamlit:', e);
+            }
         }
         
-        // Send screen size to Streamlit
-        const size = getScreenSize();
-        window.parent.postMessage({
-            type: 'streamlit:setComponentValue',
-            value: size
-        }, '*');
+        // Run immediately
+        updateScreenSize();
+        
+        // Run on resize
+        window.addEventListener('resize', updateScreenSize);
+        
+        // Run periodically to ensure detection
+        setInterval(updateScreenSize, 2000);
         </script>
         """
         
         # Create a hidden component to run JavaScript
         components.html(js_code, height=0)
         
-        # Use session state to store screen size
+        # Check session state for screen size
         if 'screen_size' not in st.session_state:
-            st.session_state.screen_size = 'desktop'  # Default fallback
+            # Try to get from URL parameters
+            query_params = st.experimental_get_query_params()
+            if 'screen_size' in query_params:
+                st.session_state.screen_size = query_params['screen_size'][0]
+            else:
+                # Fallback: try to detect from user agent
+                try:
+                    user_agent = st.get_user_agent()
+                    if user_agent and ('Mobile' in user_agent or 'Android' in user_agent or 'iPhone' in user_agent):
+                        st.session_state.screen_size = 'mobile'
+                    else:
+                        st.session_state.screen_size = 'desktop'
+                except:
+                    st.session_state.screen_size = 'desktop'  # Default fallback
         
         return st.session_state.screen_size
     

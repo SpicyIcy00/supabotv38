@@ -2996,6 +2996,7 @@ def render_dashboard():
     # Import mobile dashboard components
     try:
         from supabot.ui.components.mobile_dashboard import MobileDashboard
+        from supabot.ui.components.mobile.responsive_wrapper import ResponsiveWrapper
         mobile_available = True
     except ImportError:
         mobile_available = False
@@ -3005,14 +3006,17 @@ def render_dashboard():
     if mobile_available:
         # Try to detect if we're on mobile
         try:
-            from supabot.ui.components.mobile.responsive_wrapper import ResponsiveWrapper
             screen_size = ResponsiveWrapper.get_screen_size()
+            st.info(f"🔍 Detected screen size: {screen_size}")
+            
             if screen_size == 'mobile':
+                st.info("📱 Using mobile-responsive layout")
                 render_responsive_dashboard()
             else:
+                st.info("🖥️ Using desktop layout")
                 render_legacy_dashboard()
-        except:
-            # If screen detection fails, use legacy dashboard
+        except Exception as e:
+            st.warning(f"⚠️ Screen detection failed: {e}. Using desktop layout.")
             render_legacy_dashboard()
     else:
         render_legacy_dashboard()
@@ -3021,20 +3025,60 @@ def render_responsive_dashboard():
     """Renders the responsive dashboard with mobile optimization."""
     from supabot.ui.components.mobile_dashboard import MobileDashboard
     
-    # Use existing dashboard data instead of creating new filters
+    # Ensure session state is initialized
+    if "dashboard_time_filter" not in st.session_state:
+        st.session_state.dashboard_time_filter = "7D"
+    if "dashboard_store_filter" not in st.session_state:
+        st.session_state.dashboard_store_filter = ["Rockwell", "Greenhills", "Magnolia", "North Edsa", "Fairview"]
+    
+    # Get store IDs for filtering
+    store_ids = None
+    if st.session_state.dashboard_store_filter:
+        try:
+            from appv38 import get_store_list
+            store_df = get_store_list()
+            if store_df is not None and not store_df.empty:
+                # Filter stores by selected names
+                selected_stores = st.session_state.dashboard_store_filter
+                store_ids = store_df[store_df['name'].isin(selected_stores)]['id'].tolist()
+        except Exception as e:
+            st.warning(f"⚠️ Could not get store IDs: {e}")
+    
     # Get metrics
-    metrics = get_dashboard_metrics(st.session_state.dashboard_time_filter, None)
+    try:
+        metrics = get_dashboard_metrics(st.session_state.dashboard_time_filter, store_ids)
+        st.info(f"📊 Loaded metrics for {st.session_state.dashboard_time_filter}")
+    except Exception as e:
+        st.error(f"❌ Failed to load metrics: {e}")
+        metrics = {}
     
     # Get sales trend data
-    sales_df = get_sales_trend_data(st.session_state.dashboard_time_filter, None)
+    try:
+        sales_df = get_sales_trend_data(st.session_state.dashboard_time_filter, store_ids)
+        st.info(f"📈 Loaded sales trend data: {len(sales_df) if sales_df is not None else 0} rows")
+    except Exception as e:
+        st.error(f"❌ Failed to load sales trend: {e}")
+        sales_df = pd.DataFrame()
     
     # Get category data
-    sales_cat_df = get_sales_by_category_data(st.session_state.dashboard_time_filter, None)
-    inv_cat_df = get_inventory_by_category_data(None)
+    try:
+        sales_cat_df = get_sales_by_category_data(st.session_state.dashboard_time_filter, store_ids)
+        inv_cat_df = get_inventory_by_category_data(store_ids)
+        st.info(f"📂 Loaded category data: {len(sales_cat_df) if sales_cat_df is not None else 0} rows")
+    except Exception as e:
+        st.error(f"❌ Failed to load category data: {e}")
+        sales_cat_df = pd.DataFrame()
+        inv_cat_df = pd.DataFrame()
     
     # Get top products and categories with change data
-    top_change_df = get_top_products_with_change(st.session_state.dashboard_time_filter, None)
-    cat_change_df = get_categories_with_change(st.session_state.dashboard_time_filter, None)
+    try:
+        top_change_df = get_top_products_with_change(st.session_state.dashboard_time_filter, store_ids)
+        cat_change_df = get_categories_with_change(st.session_state.dashboard_time_filter, store_ids)
+        st.info(f"🏆 Loaded top products: {len(top_change_df) if top_change_df is not None else 0} rows")
+    except Exception as e:
+        st.error(f"❌ Failed to load top products/categories: {e}")
+        top_change_df = pd.DataFrame()
+        cat_change_df = pd.DataFrame()
     
     # Render responsive dashboard
     MobileDashboard.render_responsive_dashboard(
