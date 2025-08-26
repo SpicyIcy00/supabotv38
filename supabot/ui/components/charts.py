@@ -46,30 +46,6 @@ class ChartFactory:
             return ChartFactory.create_bar_chart(results_df, question, numeric_cols, text_cols)
     
     @staticmethod
-    def create_smart_visualization_mobile(results_df: pd.DataFrame, question: str) -> Optional[go.Figure]:
-        """Create mobile-optimized visualization based on data characteristics and question."""
-        if results_df is None or results_df.empty:
-            return None
-        
-        # Analyze data characteristics
-        numeric_cols = list(results_df.select_dtypes(include=['int64', 'float64', 'int32', 'float32']).columns)
-        text_cols = list(results_df.select_dtypes(include=['object', 'string']).columns)
-        date_cols = list(results_df.select_dtypes(include=['datetime64', 'datetime64[ns]']).columns)
-        
-        # Determine best chart type for mobile
-        chart_type = ChartFactory._determine_chart_type_mobile(question.lower(), results_df, numeric_cols, text_cols, date_cols)
-        
-        # Create appropriate mobile-optimized chart
-        if chart_type == "pie":
-            return ChartFactory.create_pie_chart_mobile(results_df, question, numeric_cols, text_cols)
-        elif chart_type == "bar":
-            return ChartFactory.create_bar_chart_mobile(results_df, question, numeric_cols, text_cols)
-        elif chart_type == "line":
-            return ChartFactory.create_line_chart_mobile(results_df, question, numeric_cols, text_cols, date_cols)
-        else:  # Default to bar chart for mobile
-            return ChartFactory.create_bar_chart_mobile(results_df, question, numeric_cols, text_cols)
-    
-    @staticmethod
     def _determine_chart_type(question_lower: str, results_df: pd.DataFrame, 
                              numeric_cols: List[str], text_cols: List[str], date_cols: List[str]) -> str:
         """Determine the best chart type based on question and data characteristics."""
@@ -105,24 +81,6 @@ class ChartFactory:
         return "bar"
     
     @staticmethod
-    def _determine_chart_type_mobile(question_lower: str, results_df: pd.DataFrame, 
-                                   numeric_cols: List[str], text_cols: List[str], date_cols: List[str]) -> str:
-        """Determine the best chart type for mobile based on question and data characteristics."""
-        row_count = len(results_df)
-        
-        # Mobile-optimized chart selection - prefer simpler charts
-        # Time series patterns
-        if date_cols and any(word in question_lower for word in ['trend', 'over time', 'daily', 'weekly', 'monthly', 'timeline']):
-            return "line"
-        
-        # Distribution and comparison patterns - limit pie charts on mobile
-        if any(word in question_lower for word in ['share', 'proportion', 'percentage', 'distribution']) and row_count <= 5:
-            return "pie"
-        
-        # Default to bar chart for mobile (most readable)
-        return "bar"
-    
-    @staticmethod
     def create_pie_chart(results_df: pd.DataFrame, question: str, numeric_cols: List[str], text_cols: List[str]) -> go.Figure:
         """Create a pie chart visualization."""
         value_col = ChartFactory._get_best_value_column(numeric_cols)
@@ -142,34 +100,6 @@ class ChartFactory:
         
         fig.update_traces(textposition='inside', textinfo='percent+label')
         fig.update_layout(height=500, showlegend=True)
-        return fig
-    
-    @staticmethod
-    def create_pie_chart_mobile(results_df: pd.DataFrame, question: str, numeric_cols: List[str], text_cols: List[str]) -> go.Figure:
-        """Create a mobile-optimized pie chart visualization."""
-        value_col = ChartFactory._get_best_value_column(numeric_cols)
-        label_col = ChartFactory._get_best_label_column(text_cols)
-        
-        if not value_col or not label_col:
-            return ChartFactory.create_bar_chart_mobile(results_df, question, numeric_cols, text_cols)
-        
-        # Limit to top 5 for mobile readability
-        df_sorted = results_df.nlargest(5, value_col)
-        
-        fig = px.pie(df_sorted, 
-                     values=value_col, 
-                     names=label_col,
-                     title=f"Distribution: {question}",
-                     color_discrete_sequence=px.colors.qualitative.Set3)
-        
-        # Mobile-optimized layout
-        fig.update_traces(textposition='inside', textinfo='percent+label')
-        fig.update_layout(
-            height=350,  # Smaller height for mobile
-            showlegend=True,
-            font=dict(size=12),  # Smaller font for mobile
-            margin=dict(l=20, r=20, t=40, b=20)  # Tighter margins
-        )
         return fig
     
     @staticmethod
@@ -235,38 +165,6 @@ class ChartFactory:
         
         fig.update_layout(height=500)
         fig.update_traces(line=dict(width=3), marker=dict(size=8))
-        return fig
-    
-    @staticmethod
-    def create_line_chart_mobile(results_df: pd.DataFrame, question: str, numeric_cols: List[str], 
-                               text_cols: List[str], date_cols: List[str]) -> go.Figure:
-        """Create a mobile-optimized line chart visualization."""
-        value_col = ChartFactory._get_best_value_column(numeric_cols)
-        
-        if date_cols:
-            x_col = date_cols[0]
-        elif text_cols:
-            x_col = text_cols[0]
-        else:
-            return ChartFactory.create_bar_chart_mobile(results_df, question, numeric_cols, text_cols)
-        
-        # Sort by x column for proper line progression
-        df_sorted = results_df.sort_values(x_col)
-        
-        fig = px.line(df_sorted,
-                      x=x_col,
-                      y=value_col,
-                      title=f"Trend: {question}",
-                      markers=True)
-        
-        # Mobile-optimized layout
-        fig.update_layout(
-            height=350,  # Smaller height for mobile
-            font=dict(size=12),  # Smaller font for mobile
-            margin=dict(l=40, r=20, t=40, b=40),  # Adjusted margins for mobile
-            xaxis=dict(tickangle=45)  # Rotate x-axis labels for mobile
-        )
-        fig.update_traces(line=dict(width=2), marker=dict(size=6))  # Smaller elements for mobile
         return fig
     
     @staticmethod
@@ -373,46 +271,6 @@ class ChartFactory:
                 fig.update_xaxes(tickangle=45)
         
         fig.update_layout(height=500)
-        return fig
-    
-    @staticmethod
-    def create_bar_chart_mobile(results_df: pd.DataFrame, question: str, numeric_cols: List[str], text_cols: List[str]) -> go.Figure:
-        """Create a mobile-optimized bar chart visualization."""
-        value_col = ChartFactory._get_best_value_column(numeric_cols)
-        label_col = ChartFactory._get_best_label_column(text_cols)
-        
-        if not value_col:
-            # If no numeric columns, show first few rows as text
-            fig = go.Figure()
-            fig.add_annotation(text="No numeric data to visualize", 
-                             xref="paper", yref="paper", x=0.5, y=0.5,
-                             showarrow=False, font=dict(size=14))
-            fig.update_layout(title=f"Data: {question}", height=300)
-            return fig
-        
-        if not label_col:
-            # Create index-based bar chart
-            fig = px.bar(results_df.head(10),  # Limit to 10 for mobile
-                         y=value_col,
-                         title=f"Analysis: {question}")
-        else:
-            # Limit to top 10 for mobile readability
-            df_display = results_df.nlargest(10, value_col)
-            fig = px.bar(df_display,
-                         x=label_col,
-                         y=value_col,
-                         title=f"Analysis: {question}")
-            
-            # Always rotate x-axis labels for mobile
-            fig.update_xaxes(tickangle=45)
-        
-        # Mobile-optimized layout
-        fig.update_layout(
-            height=350,  # Smaller height for mobile
-            font=dict(size=12),  # Smaller font for mobile
-            margin=dict(l=60, r=20, t=40, b=60),  # Adjusted margins for mobile
-            showlegend=False  # Hide legend on mobile to save space
-        )
         return fig
     
     @staticmethod
