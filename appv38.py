@@ -2999,6 +2999,7 @@ def render_dashboard():
 
     with dashboard_tab:
         # --- 1. Time and Store Selectors ---
+        st.markdown('<div class="filter-container">', unsafe_allow_html=True)
         filter_col1, filter_col2, filter_col3 = st.columns([2, 2, 2])
         with filter_col1:
             time_options = ["1D", "7D", "1M", "6M", "1Y", "Custom"]
@@ -3047,6 +3048,8 @@ def render_dashboard():
                 options=[all_stores_option] + store_list,
                 default=st.session_state.dashboard_store_filter
             )
+        
+        st.markdown('</div>', unsafe_allow_html=True)
 
         # --- Process Filters ---
         time_filter = st.session_state.dashboard_time_filter
@@ -3197,6 +3200,7 @@ def render_dashboard():
             arrow = "↗" if change > 0 else "↘"
             return f"{change:+.1f}% {arrow}"
 
+        st.markdown('<div class="kpi-container">', unsafe_allow_html=True)
         kpi1, kpi2, kpi3, kpi4 = st.columns(4)
 
         with kpi1:
@@ -3222,6 +3226,8 @@ def render_dashboard():
             prev_avg_value = metrics.get('prev_avg_transaction_value', 0)
             delta = format_percentage_change(avg_value, prev_avg_value)
             st.metric("Avg Transaction Value", f"₱{avg_value:,.0f}", delta)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("<hr>", unsafe_allow_html=True)
         
@@ -3322,6 +3328,7 @@ Previous Period Query:
         st.markdown("<hr>", unsafe_allow_html=True)
         
         # --- 3. Main Grid Layout (AI removed from this tab) ---
+        st.markdown('<div class="chart-container">', unsafe_allow_html=True)
         left_col, center_col = st.columns([1, 1], gap="large")
 
         # --- LEFT COLUMN - PRODUCT & CATEGORY ANALYTICS ---
@@ -3545,6 +3552,8 @@ Previous Period Query:
             # Center column keeps Store Performance and Sales Trend only
 
         # (Removed bottom Sales Trend Analysis and Inventory by Category sections)
+        st.markdown('</div>', unsafe_allow_html=True)  # Close chart-container
+        
         # --- AI Intelligence Section (Fullscreen) ---
         st.markdown("---")
         st.markdown("### 🧠 AI Business Intelligence")
@@ -3990,6 +3999,8 @@ def render_chart_view():
     st.markdown("### 🎛️ Analytics Controls")
     with st.expander("Debug", expanded=False):
         st.checkbox("Show Chart SQL", key="debug_chart_sql")
+    
+    st.markdown('<div class="filter-container">', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     with c1:
         st.selectbox("Analyze by", ["Stores", "Product Categories", "Products", "Avg Transaction Value"], key="cv_metric_type")
@@ -3997,6 +4008,8 @@ def render_chart_view():
         # Do not set a default index when using a session-state-backed key to avoid Streamlit warning
         st.selectbox("Time Granularity", ["Minute", "Hour", "Day", "Week", "Month"], key="cv_granularity")
 
+    st.markdown('</div>', unsafe_allow_html=True)  # Close filter-container
+    
     # --- Render Filter Sets ---
     all_data_frames = []
     
@@ -7062,6 +7075,7 @@ def render_product_sales_report():
     store_names = list(store_options.keys())
 
     st.markdown("### 🎛️ Report Configuration")
+    st.markdown('<div class="filter-container">', unsafe_allow_html=True)
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         primary_store = st.selectbox("Primary Store", store_names, index=0)
@@ -7072,6 +7086,8 @@ def render_product_sales_report():
         start_date = st.date_input("Start Date", date.today() - timedelta(days=7))
     with col4:
         end_date = st.date_input("End Date", date.today())
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
     if st.button("🚀 Generate Polars Report", type="primary", use_container_width=True):
         if start_date > end_date:
