@@ -3864,17 +3864,17 @@ def render_advanced_analytics():
 
     # Create tabs for different analytics sections
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "🔍 AI Analytics", 
+        "🔍 Demand Analytics", 
         "📊 Predictive Forecasting", 
         "👥 Customer Intelligence", 
         "🚨 Smart Alerts", 
         "🤖 Automated Insights"
     ])
     
-    # Tab 1: AI Analytics Engine
+    # Tab 1: Demand Analytics Engine
     with tab1:
-        st.markdown("### 🔍 AI Analytics Engine")
-        st.caption("Advanced analytics for hidden demand detection and stockout prediction")
+        st.markdown("### 🔍 Demand Analytics Engine")
+        st.caption("Hidden demand detection and stockout prediction")
         
         col1, col2 = st.columns(2)
         
@@ -3882,11 +3882,52 @@ def render_advanced_analytics():
             if st.button("🔍 Detect Hidden Demand", key="detect_hidden_demand"):
                 with st.spinner("Analyzing sales patterns and inventory levels..."):
                     try:
-                        # Use the analytics repository directly
-                        from supabot.data.repositories.analytics import get_analytics_repository
-                        analytics_repo = get_analytics_repository()
-                        hidden_demand_df = analytics_repo.detect_hidden_demand(days_back=90)
+                        # Direct SQL implementation for hidden demand detection
+                        sql = """
+                        WITH product_sales AS (
+                            SELECT
+                                p.id as product_id,
+                                p.name as product_name,
+                                p.category,
+                                SUM(ti.quantity) as total_sold,
+                                COUNT(DISTINCT t.ref_id) as transaction_count,
+                                MAX(t.transaction_time) as last_sale_date
+                            FROM transaction_items ti
+                            JOIN transactions t ON ti.transaction_ref_id = t.ref_id
+                            JOIN products p ON ti.product_id = p.id
+                            WHERE LOWER(t.transaction_type) = 'sale' 
+                            AND COALESCE(t.is_cancelled, false) = false
+                            AND (t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '90 days'
+                            GROUP BY p.id, p.name, p.category
+                        ),
+                        inventory_status AS (
+                            SELECT
+                                i.product_id,
+                                SUM(i.quantity_on_hand) as total_stock
+                            FROM inventory i
+                            GROUP BY i.product_id
+                        )
+                        SELECT
+                            ps.product_name,
+                            ps.category,
+                            ps.total_sold,
+                            ps.transaction_count,
+                            COALESCE(is.total_stock, 0) as current_stock,
+                            ps.last_sale_date,
+                            CASE 
+                                WHEN COALESCE(is.total_stock, 0) = 0 AND ps.total_sold > 10 THEN 'HIGH DEMAND - OUT OF STOCK'
+                                WHEN COALESCE(is.total_stock, 0) <= 5 AND ps.total_sold > 20 THEN 'HIGH DEMAND - LOW STOCK'
+                                WHEN ps.total_sold > 50 THEN 'CONSISTENT DEMAND'
+                                ELSE 'MODERATE DEMAND'
+                            END as demand_level
+                        FROM product_sales ps
+                        LEFT JOIN inventory_status is ON ps.product_id = is.product_id
+                        WHERE ps.total_sold > 10
+                        ORDER BY ps.total_sold DESC, COALESCE(is.total_stock, 0) ASC
+                        LIMIT 20
+                        """
                         
+                        hidden_demand_df = execute_query_for_dashboard(sql)
                         if hidden_demand_df is not None and not hidden_demand_df.empty:
                             st.success(f"✅ Found {len(hidden_demand_df)} products with hidden demand!")
                             st.dataframe(hidden_demand_df.head(10), use_container_width=True)
