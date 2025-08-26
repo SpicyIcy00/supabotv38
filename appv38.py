@@ -3879,192 +3879,105 @@ def render_advanced_analytics():
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("🔍 Advanced Hidden Demand Detection")
-            st.info("📊 Statistical analysis of demand patterns with confidence scoring")
+            st.subheader("🔍 Data Diagnostic Tool")
+            st.info("📊 Analyze data availability and quality for hidden demand detection")
             
             # Configuration controls
             col1_1, col1_2 = st.columns(2)
             with col1_1:
                 lookback_days = st.selectbox("Analysis Period", [7, 14, 30, 60, 90], index=2, key="lookback_days")
             with col1_2:
-                if st.button("🔍 Analyze Hidden Demand", type="primary", key="analyze_hidden_demand"):
+                if st.button("🔍 Run Data Diagnostic", type="primary", key="analyze_hidden_demand"):
                     st.session_state.trigger_hidden_demand_analysis = True
             
             if st.session_state.get('trigger_hidden_demand_analysis', False):
-                with st.spinner("Performing advanced statistical analysis..."):
+                with st.spinner("Running data diagnostic analysis..."):
                     try:
-                        # Simplified hidden demand detection using weekly aggregation
+                        # Simple diagnostic query to see what data exists
                         sql = """
-                        WITH weekly_sales AS (
-                            SELECT 
-                                p.id as product_id, p.name as product_name, p.category,
-                                t.store_id, s.name as store_name,
-                                DATE_TRUNC('week', t.transaction_time AT TIME ZONE 'Asia/Manila') as week_start,
-                                SUM(ti.quantity) as weekly_qty
-                            FROM transaction_items ti
-                            JOIN transactions t ON ti.transaction_ref_id = t.ref_id
-                            JOIN products p ON ti.product_id = p.id
-                            JOIN stores s ON t.store_id = s.id
-                            WHERE LOWER(t.transaction_type) = 'sale' 
-                            AND (t.is_cancelled = false OR t.is_cancelled IS NULL)
-                            AND t.transaction_time >= CURRENT_DATE - INTERVAL %s
-                            GROUP BY 1, 2, 3, 4, 5, 6
-                        ),
-                        
-                        demand_analysis AS (
-                            SELECT 
-                                product_id, product_name, category, store_id, store_name,
-                                AVG(weekly_qty) as avg_weekly_demand,
-                                COUNT(*) as weeks_with_sales,
-                                MAX(week_start) as last_sale_week,
-                                CURRENT_DATE - MAX(week_start) as days_since_last_sale
-                            FROM weekly_sales
-                            GROUP BY 1, 2, 3, 4, 5
-                            HAVING COUNT(*) >= 2 AND AVG(weekly_qty) >= 1.0
-                        ),
-                        
-                        inventory_status AS (
-                            SELECT 
-                                da.*,
-                                COALESCE(i.quantity_on_hand, 0) as current_stock,
-                                CASE 
-                                    WHEN i.quantity_on_hand = 0 THEN 1.0
-                                    WHEN i.quantity_on_hand <= da.avg_weekly_demand THEN 0.8
-                                    WHEN i.quantity_on_hand <= da.avg_weekly_demand * 2 THEN 0.5
-                                    ELSE 0.2
-                                END as stockout_risk
-                            FROM demand_analysis da
-                            LEFT JOIN inventory i ON da.product_id = i.product_id AND da.store_id = i.store_id
-                        ),
-                        
-                        hidden_demand_scoring AS (
-                            SELECT *,
-                                -- Simple confidence score based on demand and stockout correlation
-                                LEAST(1.0, GREATEST(0.0,
-                                    (avg_weekly_demand * 0.4) + 
-                                    (stockout_risk * 0.4) + 
-                                    (CASE WHEN days_since_last_sale <= 14 THEN 0.2 ELSE 0.1 END)
-                                )) as confidence_score,
-                                
-                                -- Weekly demand estimate
-                                avg_weekly_demand as estimated_weekly_demand
-                            FROM inventory_status
-                        )
-                        
                         SELECT 
-                            product_name, store_name, category,
-                            ROUND(avg_weekly_demand, 2) as avg_weekly_demand,
-                            weeks_with_sales,
-                            days_since_last_sale,
-                            current_stock,
-                            ROUND(confidence_score * 100, 1) as confidence_percent,
-                            ROUND(estimated_weekly_demand, 0) as weekly_demand_estimate,
-                            
-                            CASE 
-                                WHEN confidence_score >= 0.8 AND current_stock = 0 THEN 'URGENT_RESTOCK'
-                                WHEN confidence_score >= 0.6 THEN 'HIGH_CONFIDENCE'
-                                WHEN confidence_score >= 0.4 THEN 'MEDIUM_CONFIDENCE'
-                                WHEN confidence_score >= 0.2 THEN 'INVESTIGATE'
-                                ELSE 'LOW_CONFIDENCE'
-                            END as recommendation,
-                            
-                            -- Simple actionable insights
-                            CASE 
-                                WHEN current_stock = 0 AND avg_weekly_demand > 1
-                                THEN CONCAT('Out of stock - estimated ', ROUND(avg_weekly_demand), ' units/week demand')
-                                WHEN current_stock <= avg_weekly_demand AND avg_weekly_demand > 2
-                                THEN CONCAT('Low stock - restock ', ROUND(avg_weekly_demand * 2), ' units')
-                                WHEN days_since_last_sale > 21 AND avg_weekly_demand > 1
-                                THEN 'No recent sales - verify inventory or investigate'
-                                ELSE 'Monitor inventory levels'
-                            END as insight
-                            
-                        FROM hidden_demand_scoring
-                        ORDER BY confidence_score DESC, estimated_weekly_demand DESC
-                        LIMIT 100
+                            COUNT(*) as total_rows,
+                            COUNT(DISTINCT t.ref_id) as unique_transactions,
+                            COUNT(DISTINCT ti.product_id) as unique_products,
+                            COUNT(DISTINCT t.store_id) as unique_stores,
+                            MIN(DATE(t.transaction_time AT TIME ZONE 'Asia/Manila')) as earliest_date,
+                            MAX(DATE(t.transaction_time AT TIME ZONE 'Asia/Manila')) as latest_date,
+                            STRING_AGG(DISTINCT LOWER(t.transaction_type), ', ') as transaction_types,
+                            COUNT(CASE WHEN t.is_cancelled IS NULL THEN 1 END) as null_cancelled,
+                            COUNT(CASE WHEN t.is_cancelled = false THEN 1 END) as false_cancelled,
+                            COUNT(CASE WHEN t.is_cancelled = true THEN 1 END) as true_cancelled
+                        FROM transaction_items ti
+                        JOIN transactions t ON ti.transaction_ref_id = t.ref_id
+                        WHERE t.transaction_time >= CURRENT_DATE - INTERVAL %s
                         """
                         
                         params = (f"{lookback_days} days",)
                         hidden_demand_df = execute_query_for_dashboard(sql, params)
                         
                         if hidden_demand_df is not None and not hidden_demand_df.empty:
-                            # Debugging output
-                            st.info(f"📊 Analyzed {len(hidden_demand_df)} products with sales history in the last {lookback_days} days")
+                            # Display diagnostic results
+                            st.success("✅ Data diagnostic completed successfully!")
                             
-                            # Summary metrics
-                            urgent_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'URGENT_RESTOCK'])
-                            high_conf_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'HIGH_CONFIDENCE'])
-                            medium_conf_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'MEDIUM_CONFIDENCE'])
-                            investigate_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'INVESTIGATE'])
-                            low_conf_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'LOW_CONFIDENCE'])
-                            total_estimated_demand = hidden_demand_df['weekly_demand_estimate'].sum()
+                            # Get the first (and only) row of diagnostic data
+                            diagnostic_data = hidden_demand_df.iloc[0]
                             
-                            col1_metrics, col2_metrics, col3_metrics, col4_metrics, col5_metrics = st.columns(5)
-                            with col1_metrics:
-                                st.metric("🚨 Urgent", urgent_count)
-                            with col2_metrics:  
-                                st.metric("✅ High Conf", high_conf_count)
-                            with col3_metrics:
-                                st.metric("🟡 Medium Conf", medium_conf_count)
-                            with col4_metrics:
-                                st.metric("🔍 Investigate", investigate_count)
-                            with col5_metrics:
-                                st.metric("📈 Est. Demand", f"{total_estimated_demand:,.0f}")
+                            # Display key metrics
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("📊 Total Rows", f"{diagnostic_data['total_rows']:,}")
+                                st.metric("🛒 Unique Transactions", f"{diagnostic_data['unique_transactions']:,}")
+                            with col2:
+                                st.metric("📦 Unique Products", f"{diagnostic_data['unique_products']:,}")
+                                st.metric("🏪 Unique Stores", f"{diagnostic_data['unique_stores']:,}")
+                            with col3:
+                                st.metric("📅 Date Range", f"{diagnostic_data['earliest_date']} to {diagnostic_data['latest_date']}")
                             
-                            # Enhanced data display with conditional formatting
-                            def style_confidence(val):
-                                if val >= 80: return 'background-color: #ff4444; color: white; font-weight: bold'
-                                elif val >= 70: return 'background-color: #ff8800; color: white'
-                                elif val >= 50: return 'background-color: #ffdd00; color: black'
-                                else: return 'background-color: #dddddd; color: black'
+                            # Display detailed information
+                            st.subheader("📋 Data Quality Analysis")
                             
-                            def style_recommendation(val):
-                                colors = {
-                                    'URGENT_RESTOCK': 'background-color: #ff0000; color: white; font-weight: bold',
-                                    'HIGH_CONFIDENCE': 'background-color: #ff6600; color: white',
-                                    'MEDIUM_CONFIDENCE': 'background-color: #ffaa00; color: black',
-                                    'INVESTIGATE': 'background-color: #ffff00; color: black'
-                                }
-                                return colors.get(val, '')
+                            col1_info, col2_info = st.columns(2)
+                            with col1_info:
+                                st.markdown("**Transaction Types:**")
+                                st.code(diagnostic_data['transaction_types'])
+                                
+                                st.markdown("**Cancellation Status:**")
+                                st.markdown(f"- NULL cancelled: {diagnostic_data['null_cancelled']:,}")
+                                st.markdown(f"- False cancelled: {diagnostic_data['false_cancelled']:,}")
+                                st.markdown(f"- True cancelled: {diagnostic_data['true_cancelled']:,}")
                             
-                            styled_df = hidden_demand_df.style.applymap(
-                                style_confidence, subset=['confidence_percent']
-                            ).applymap(
-                                style_recommendation, subset=['recommendation'] 
-                            )
+                            with col2_info:
+                                st.markdown("**Data Availability:**")
+                                if diagnostic_data['total_rows'] > 0:
+                                    st.success("✅ Transaction data available")
+                                else:
+                                    st.error("❌ No transaction data found")
+                                
+                                if diagnostic_data['unique_products'] > 0:
+                                    st.success("✅ Product data available")
+                                else:
+                                    st.error("❌ No product data found")
+                                
+                                if diagnostic_data['unique_stores'] > 0:
+                                    st.success("✅ Store data available")
+                                else:
+                                    st.error("❌ No store data found")
                             
-                            st.dataframe(styled_df, use_container_width=True)
-                            
-                            # Visualization
-                            if len(hidden_demand_df) > 5:
-                                try:
-                                    import plotly.express as px
-                                    fig = px.scatter(
-                                        hidden_demand_df, 
-                                        x='days_since_last_sale', 
-                                        y='weekly_demand_estimate',
-                                        size='confidence_percent',
-                                        color='recommendation',
-                                        hover_data=['product_name', 'store_name'],
-                                        title='Hidden Demand Analysis: Confidence vs Estimated Demand'
-                                    )
-                                    fig.update_layout(template="plotly_dark", plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
-                                    st.plotly_chart(fig, use_container_width=True)
-                                except ImportError:
-                                    st.info("📊 Install plotly for interactive visualizations")
+                            # Display raw data
+                            st.subheader("📊 Raw Diagnostic Data")
+                            st.dataframe(hidden_demand_df, use_container_width=True)
                             
                             # Download option
                             csv_data = hidden_demand_df.to_csv(index=False)
                             st.download_button(
-                                "📥 Download Advanced Hidden Demand Report",
+                                "📥 Download Data Diagnostic Report",
                                 csv_data,
-                                "advanced_hidden_demand_analysis.csv",
+                                f"data_diagnostic_{lookback_days}days.csv",
                                 "text/csv",
                                 use_container_width=True
                             )
                         else:
-                            st.warning("⚠️ No products found with sufficient sales history for analysis")
-                            st.info("💡 Try increasing the analysis period or check if there are recent sales transactions")
+                            st.error("❌ No data found in the specified time period")
+                            st.info("💡 Try increasing the analysis period or check database connectivity")
                             
                     except Exception as e:
                         st.error(f"Error analyzing hidden demand: {e}")
