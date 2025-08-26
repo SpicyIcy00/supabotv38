@@ -3893,14 +3893,14 @@ def render_advanced_analytics():
             if st.session_state.get('trigger_hidden_demand_analysis', False):
                 with st.spinner("Performing advanced statistical analysis..."):
                     try:
-                        # Advanced hidden demand detection using time-series analysis and correlation
+                        # Simplified hidden demand detection using weekly aggregation
                         sql = """
-                        WITH daily_sales AS (
+                        WITH weekly_sales AS (
                             SELECT 
                                 p.id as product_id, p.name as product_name, p.category,
                                 t.store_id, s.name as store_name,
-                                DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') as sale_date,
-                                SUM(ti.quantity) as daily_qty
+                                DATE_TRUNC('week', t.transaction_time AT TIME ZONE 'Asia/Manila') as week_start,
+                                SUM(ti.quantity) as weekly_qty
                             FROM transaction_items ti
                             JOIN transactions t ON ti.transaction_ref_id = t.ref_id
                             JOIN products p ON ti.product_id = p.id
@@ -3911,126 +3911,72 @@ def render_advanced_analytics():
                             GROUP BY 1, 2, 3, 4, 5, 6
                         ),
                         
-                        sales_with_gaps AS (
-                            SELECT *,
-                                sale_date - LAG(sale_date, 1) OVER (
-                                    PARTITION BY product_id, store_id 
-                                    ORDER BY sale_date
-                                ) as gap_days,
-                                AVG(daily_qty) OVER (
-                                    PARTITION BY product_id, store_id 
-                                    ORDER BY sale_date 
-                                    ROWS BETWEEN 13 PRECEDING AND CURRENT ROW
-                                ) as rolling_avg_14d
-                            FROM daily_sales
-                        ),
-                        
-                        demand_patterns AS (
+                        demand_analysis AS (
                             SELECT 
                                 product_id, product_name, category, store_id, store_name,
-                                
-                                -- Core demand metrics
-                                AVG(daily_qty) as avg_daily_demand,
-                                STDDEV(daily_qty) as demand_volatility,
-                                COUNT(*) as sales_days,
-                                
-                                -- Time gap analysis
-                                AVG(CASE WHEN gap_days IS NOT NULL THEN gap_days ELSE 1 END) as avg_gap_days,
-                                MAX(gap_days) as max_gap_days,
-                                CURRENT_DATE - MAX(sale_date) as days_since_last_sale,
-                                
-                                -- Trend detection (simplified linear regression)
-                                REGR_SLOPE(daily_qty, EXTRACT(EPOCH FROM sale_date)) as trend_slope,
-                                CORR(daily_qty, EXTRACT(EPOCH FROM sale_date)) as trend_correlation,
-                                
-                                -- Recent vs historical comparison
-                                AVG(CASE WHEN sale_date >= CURRENT_DATE - INTERVAL '30 days' 
-                                    THEN daily_qty ELSE NULL END) as recent_30d_avg,
-                                AVG(CASE WHEN sale_date < CURRENT_DATE - INTERVAL '30 days' 
-                                    THEN daily_qty ELSE NULL END) as historical_avg
-                                
-                            FROM sales_with_gaps
+                                AVG(weekly_qty) as avg_weekly_demand,
+                                COUNT(*) as weeks_with_sales,
+                                MAX(week_start) as last_sale_week,
+                                CURRENT_DATE - MAX(week_start) as days_since_last_sale
+                            FROM weekly_sales
                             GROUP BY 1, 2, 3, 4, 5
-                            HAVING COUNT(*) >= 14  -- Minimum 14 sales days for analysis
+                            HAVING COUNT(*) >= 2 AND AVG(weekly_qty) >= 1.0
                         ),
                         
-                        inventory_correlation AS (
+                        inventory_status AS (
                             SELECT 
-                                dp.*,
+                                da.*,
                                 COALESCE(i.quantity_on_hand, 0) as current_stock,
                                 CASE 
-                                    WHEN i.quantity_on_hand = 0 THEN 1
-                                    WHEN i.quantity_on_hand <= dp.avg_daily_demand * 3 THEN 0.7
-                                    WHEN i.quantity_on_hand <= dp.avg_daily_demand * 7 THEN 0.3
-                                    ELSE 0
-                                END as stockout_signal,
-                                
-                                -- Demand disruption score
-                                CASE 
-                                    WHEN dp.days_since_last_sale > 14 
-                                         AND dp.historical_avg > 0.5 
-                                         AND dp.trend_slope > -0.01 
-                                    THEN 1.0
-                                    WHEN dp.max_gap_days > dp.avg_gap_days * 3 
-                                         AND dp.demand_volatility < dp.avg_daily_demand
-                                    THEN 0.8
-                                    ELSE 0.0
-                                END as disruption_score
-                                
-                            FROM demand_patterns dp
-                            LEFT JOIN inventory i ON dp.product_id = i.product_id AND dp.store_id = i.store_id
+                                    WHEN i.quantity_on_hand = 0 THEN 1.0
+                                    WHEN i.quantity_on_hand <= da.avg_weekly_demand THEN 0.8
+                                    WHEN i.quantity_on_hand <= da.avg_weekly_demand * 2 THEN 0.5
+                                    ELSE 0.2
+                                END as stockout_risk
+                            FROM demand_analysis da
+                            LEFT JOIN inventory i ON da.product_id = i.product_id AND da.store_id = i.store_id
                         ),
                         
                         hidden_demand_scoring AS (
                             SELECT *,
-                                -- Multi-factor confidence score (0-1 scale)
+                                -- Simple confidence score based on demand and stockout correlation
                                 LEAST(1.0, GREATEST(0.0,
-                                    (CASE WHEN historical_avg > 1.0 THEN 0.3 ELSE historical_avg * 0.3 END) +
-                                    (stockout_signal * 0.25) +
-                                    (disruption_score * 0.25) +
-                                    (CASE WHEN trend_correlation > 0.1 THEN 0.1 ELSE 0 END) +
-                                    (CASE WHEN demand_volatility < avg_daily_demand THEN 0.1 ELSE 0 END)
+                                    (avg_weekly_demand * 0.4) + 
+                                    (stockout_risk * 0.4) + 
+                                    (CASE WHEN days_since_last_sale <= 14 THEN 0.2 ELSE 0.1 END)
                                 )) as confidence_score,
                                 
-                                -- Potential demand estimate
-                                GREATEST(0, historical_avg * 
-                                    CASE 
-                                        WHEN days_since_last_sale <= 7 THEN 1.0
-                                        WHEN days_since_last_sale <= 30 THEN 1.2
-                                        ELSE 1.5
-                                    END
-                                ) as estimated_weekly_demand
-                                
-                            FROM inventory_correlation
+                                -- Weekly demand estimate
+                                avg_weekly_demand as estimated_weekly_demand
+                            FROM inventory_status
                         )
                         
                         SELECT 
                             product_name, store_name, category,
-                            ROUND(avg_daily_demand, 2) as avg_daily_demand,
-                            ROUND(demand_volatility, 2) as demand_volatility,
+                            ROUND(avg_weekly_demand, 2) as avg_weekly_demand,
+                            weeks_with_sales,
                             days_since_last_sale,
                             current_stock,
                             ROUND(confidence_score * 100, 1) as confidence_percent,
-                            ROUND(estimated_weekly_demand * 7, 0) as weekly_demand_estimate,
+                            ROUND(estimated_weekly_demand, 0) as weekly_demand_estimate,
                             
                             CASE 
                                 WHEN confidence_score >= 0.8 AND current_stock = 0 THEN 'URGENT_RESTOCK'
-                                WHEN confidence_score >= 0.7 THEN 'HIGH_CONFIDENCE'
-                                WHEN confidence_score >= 0.5 THEN 'MEDIUM_CONFIDENCE'
-                                WHEN confidence_score >= 0.3 THEN 'INVESTIGATE'
+                                WHEN confidence_score >= 0.6 THEN 'HIGH_CONFIDENCE'
+                                WHEN confidence_score >= 0.4 THEN 'MEDIUM_CONFIDENCE'
+                                WHEN confidence_score >= 0.2 THEN 'INVESTIGATE'
                                 ELSE 'LOW_CONFIDENCE'
                             END as recommendation,
                             
-                            -- Actionable insights
+                            -- Simple actionable insights
                             CASE 
-                                WHEN current_stock = 0 AND confidence_score > 0.6 
-                                THEN CONCAT('Immediate restock needed - estimated ', 
-                                           ROUND(estimated_weekly_demand * 7), ' units/week demand')
-                                WHEN days_since_last_sale > 21 AND historical_avg > 1
-                                THEN 'Long sales gap detected - verify inventory or investigate external factors'
-                                WHEN trend_slope < -0.005 
-                                THEN 'Declining trend - monitor market conditions before restocking'
-                                ELSE 'Monitor inventory levels and sales patterns'
+                                WHEN current_stock = 0 AND avg_weekly_demand > 1
+                                THEN CONCAT('Out of stock - estimated ', ROUND(avg_weekly_demand), ' units/week demand')
+                                WHEN current_stock <= avg_weekly_demand AND avg_weekly_demand > 2
+                                THEN CONCAT('Low stock - restock ', ROUND(avg_weekly_demand * 2), ' units')
+                                WHEN days_since_last_sale > 21 AND avg_weekly_demand > 1
+                                THEN 'No recent sales - verify inventory or investigate'
+                                ELSE 'Monitor inventory levels'
                             END as insight
                             
                         FROM hidden_demand_scoring

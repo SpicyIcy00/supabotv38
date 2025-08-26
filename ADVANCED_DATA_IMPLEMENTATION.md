@@ -6,7 +6,7 @@ I have successfully added an "Advanced Analytics" page to the existing Streamlit
 ## What Was Implemented
 
 ### 1. 🔍 Demand Analytics Engine
-- **Advanced Hidden Demand Detection**: Statistically robust system using time-series analysis, correlation, and multi-factor confidence scoring
+- **Simplified Hidden Demand Detection**: Weekly aggregation with basic demand and stockout correlation analysis
 - **Stockout Prediction**: Calculates days until stockout using daily velocity analysis with risk categorization (CRITICAL, WARNING, SAFE)
 
 ### 2. 📊 Predictive Forecasting Engine
@@ -27,49 +27,42 @@ I have successfully added an "Advanced Analytics" page to the existing Streamlit
 - **Weekly Business Review**: AI-powered analysis using Claude API
 - **Comprehensive Reporting**: Performance metrics, trends, and actionable recommendations
 
-## Advanced Statistical System for Hidden Demand Detection
+## Simplified Hidden Demand Detection System
 
 ### Core Features
-- **Time-Series Analysis**: Daily sales patterns with gap detection and trend correlation
-- **Statistical Confidence Scoring**: Multi-factor algorithm (0-100% confidence scale)
-- **Demand Volatility Assessment**: Separates normal variation from disruptions
-- **Rolling Averages**: 14-day moving averages to smooth demand patterns
-- **Regression Analysis**: Linear trend detection using REGR_SLOPE and CORR
-- **Multi-Factor Recommendation System**: URGENT_RESTOCK, HIGH_CONFIDENCE, MEDIUM_CONFIDENCE, INVESTIGATE
-- **Actionable Insights**: Specific business recommendations for each product
+- **Weekly Aggregation**: Uses weekly sales data instead of daily for more stable patterns
+- **Basic Demand Correlation**: Simple correlation between demand and stockout risk
+- **Practical Thresholds**: Minimum 2 weeks with sales and average weekly demand ≥ 1.0
+- **Simplified Confidence Scoring**: Based on demand level, stockout risk, and recency
+- **Actionable Recommendations**: Clear restock suggestions based on inventory levels
 
-### Statistical Methodology
+### Methodology
 ```sql
--- Core demand metrics
-AVG(daily_qty) as avg_daily_demand,
-STDDEV(daily_qty) as demand_volatility,
-COUNT(*) as sales_days,
+-- Weekly sales aggregation
+DATE_TRUNC('week', t.transaction_time AT TIME ZONE 'Asia/Manila') as week_start,
+SUM(ti.quantity) as weekly_qty
 
--- Time gap analysis
-AVG(CASE WHEN gap_days IS NOT NULL THEN gap_days ELSE 1 END) as avg_gap_days,
-MAX(gap_days) as max_gap_days,
-CURRENT_DATE - MAX(sale_date) as days_since_last_sale,
+-- Basic demand analysis
+AVG(weekly_qty) as avg_weekly_demand,
+COUNT(*) as weeks_with_sales,
+CURRENT_DATE - MAX(week_start) as days_since_last_sale
 
--- Trend detection (simplified linear regression)
-REGR_SLOPE(daily_qty, EXTRACT(EPOCH FROM sale_date)) as trend_slope,
-CORR(daily_qty, EXTRACT(EPOCH FROM sale_date)) as trend_correlation,
-
--- Recent vs historical comparison
-AVG(CASE WHEN sale_date >= CURRENT_DATE - INTERVAL '30 days' 
-    THEN daily_qty ELSE NULL END) as recent_30d_avg,
-AVG(CASE WHEN sale_date < CURRENT_DATE - INTERVAL '30 days' 
-    THEN daily_qty ELSE NULL END) as historical_avg
+-- Stockout risk assessment
+CASE 
+    WHEN i.quantity_on_hand = 0 THEN 1.0
+    WHEN i.quantity_on_hand <= avg_weekly_demand THEN 0.8
+    WHEN i.quantity_on_hand <= avg_weekly_demand * 2 THEN 0.5
+    ELSE 0.2
+END as stockout_risk
 ```
 
 ### Confidence Scoring Algorithm
 ```sql
--- Multi-factor confidence score (0-1 scale)
+-- Simple confidence score based on demand and stockout correlation
 LEAST(1.0, GREATEST(0.0,
-    (CASE WHEN historical_avg > 1.0 THEN 0.3 ELSE historical_avg * 0.3 END) +
-    (stockout_signal * 0.25) +
-    (disruption_score * 0.25) +
-    (CASE WHEN trend_correlation > 0.1 THEN 0.1 ELSE 0 END) +
-    (CASE WHEN demand_volatility < avg_daily_demand THEN 0.1 ELSE 0 END)
+    (avg_weekly_demand * 0.4) + 
+    (stockout_risk * 0.4) + 
+    (CASE WHEN days_since_last_sale <= 14 THEN 0.2 ELSE 0.1 END)
 )) as confidence_score
 ```
 
@@ -83,12 +76,12 @@ LEAST(1.0, GREATEST(0.0,
 
 ### Output Metrics
 - **Product & Store**: Product name, store name, category
-- **Demand Metrics**: Average daily demand, demand volatility, days since last sale
+- **Demand Metrics**: Average weekly demand, weeks with sales, days since last sale
 - **Inventory Status**: Current stock levels
 - **Confidence Scoring**: Confidence percentage (0-100%)
-- **Demand Estimates**: Weekly demand estimates based on historical patterns
+- **Demand Estimates**: Weekly demand estimates based on weekly patterns
 - **Recommendations**: URGENT_RESTOCK, HIGH_CONFIDENCE, MEDIUM_CONFIDENCE, INVESTIGATE
-- **Insights**: Specific actionable business recommendations
+- **Insights**: Simple actionable business recommendations
 
 ## Navigation Integration
 
@@ -299,8 +292,8 @@ The Advanced Analytics page has been successfully implemented with all requested
 - ✅ **NEW**: Dedicated page in sidebar navigation
 - ✅ **FIXED**: All NameError issues resolved with direct SQL implementation
 - ✅ **RENAMED**: "AI Analytics" changed to "Demand Analytics" for clarity
-- ✅ **UPGRADED**: Advanced Statistical System for hidden demand detection with confidence scoring
+- ✅ **SIMPLIFIED**: Weekly aggregation system for hidden demand detection with basic correlation analysis
 - ✅ **OPTIMIZED**: Default parameters tuned for retail focus (30-day lookback)
 - ✅ **ENHANCED**: Removed confidence threshold filtering to show all products with detectable patterns
 
-The implementation provides a powerful analytics suite that enhances the existing Streamlit app while maintaining all existing functionality and following established coding patterns. Users can now access advanced business intelligence through a dedicated, well-organized page in the sidebar navigation with fully functional analytics features, including a statistically robust hidden demand detection system that shows all products with any detectable pattern, sorted by confidence score for maximum visibility.
+The implementation provides a powerful analytics suite that enhances the existing Streamlit app while maintaining all existing functionality and following established coding patterns. Users can now access advanced business intelligence through a dedicated, well-organized page in the sidebar navigation with fully functional analytics features, including a simplified and practical hidden demand detection system that uses weekly aggregation and basic correlation analysis for better compatibility with typical retail data patterns.
