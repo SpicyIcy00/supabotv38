@@ -3847,6 +3847,8 @@ def render_advanced_analytics():
     """Render the Advanced Analytics page with comprehensive analytics engines."""
     st.markdown('<div class="main-header"><h1>🔬 Advanced Analytics</h1><p>Comprehensive business intelligence powered by AI and predictive analytics</p></div>', unsafe_allow_html=True)
 
+
+
     # Reuse global filters from dashboard
     time_filter = st.session_state.get("dashboard_time_filter", "7D")
     selected_stores = st.session_state.get("dashboard_store_filter", [])
@@ -3880,9 +3882,10 @@ def render_advanced_analytics():
             if st.button("🔍 Detect Hidden Demand", key="detect_hidden_demand"):
                 with st.spinner("Analyzing sales patterns and inventory levels..."):
                     try:
-                        # Initialize AI Analytics Engine
-                        ai_engine = get_ai_analytics_engine()
-                        hidden_demand_df = ai_engine.detect_hidden_demand(days_back=90)
+                        # Use the analytics repository directly
+                        from supabot.data.repositories.analytics import get_analytics_repository
+                        analytics_repo = get_analytics_repository()
+                        hidden_demand_df = analytics_repo.detect_hidden_demand(days_back=90)
                         
                         if hidden_demand_df is not None and not hidden_demand_df.empty:
                             st.success(f"✅ Found {len(hidden_demand_df)} products with hidden demand!")
@@ -3985,10 +3988,54 @@ def render_advanced_analytics():
             if st.button("📈 Forecast Demand Trends", key="forecast_demand"):
                 with st.spinner("Analyzing demand trends..."):
                     try:
-                        # Initialize Predictive Forecasting Engine
-                        forecasting_engine = PredictiveForecastingEngine(create_db_connection)
-                        trends_df = forecasting_engine.forecast_demand_trends(days_ahead=30)
+                        # Simplified demand forecasting using SQL
+                        sql = """
+                        WITH weekly_sales AS (
+                            SELECT
+                                p.id as product_id,
+                                p.name as product_name,
+                                t.store_id,
+                                s.name as store_name,
+                                DATE_TRUNC('week', t.transaction_time AT TIME ZONE 'Asia/Manila') as week,
+                                SUM(ti.quantity) as weekly_qty
+                            FROM transaction_items ti
+                            JOIN transactions t ON ti.transaction_ref_id = t.ref_id
+                            JOIN products p ON ti.product_id = p.id
+                            JOIN stores s ON t.store_id = s.id
+                            WHERE (t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '180 days'
+                            AND LOWER(t.transaction_type) = 'sale' AND COALESCE(t.is_cancelled, false) = false
+                            GROUP BY p.id, p.name, t.store_id, s.name, week
+                        ),
+                        trend_analysis AS (
+                            SELECT
+                                product_id,
+                                product_name,
+                                store_id,
+                                store_name,
+                                AVG(weekly_qty) as avg_weekly_demand,
+                                STDDEV(weekly_qty) as demand_volatility,
+                                COUNT(*) as weeks_with_sales
+                            FROM weekly_sales
+                            GROUP BY product_id, product_name, store_id, store_name
+                            HAVING COUNT(*) >= 4
+                        )
+                        SELECT 
+                            product_name,
+                            store_name,
+                            avg_weekly_demand,
+                            demand_volatility,
+                            weeks_with_sales,
+                            CASE 
+                                WHEN avg_weekly_demand > 10 THEN 'HIGH'
+                                WHEN avg_weekly_demand > 5 THEN 'MEDIUM'
+                                ELSE 'LOW'
+                            END as demand_level
+                        FROM trend_analysis
+                        ORDER BY avg_weekly_demand DESC
+                        LIMIT 20
+                        """
                         
+                        trends_df = execute_query_for_dashboard(sql)
                         if trends_df is not None and not trends_df.empty:
                             st.success(f"✅ Demand trends analyzed!")
                             st.dataframe(trends_df.head(10), use_container_width=True)
@@ -4011,9 +4058,50 @@ def render_advanced_analytics():
             if st.button("🌿 Identify Seasonal Products", key="identify_seasonal"):
                 with st.spinner("Analyzing seasonal patterns..."):
                     try:
-                        forecasting_engine = PredictiveForecastingEngine(create_db_connection)
-                        seasonal_df = forecasting_engine.identify_seasonal_products()
+                        # Simplified seasonal analysis using SQL
+                        sql = """
+                        WITH monthly_sales AS (
+                            SELECT
+                                p.name as product_name,
+                                p.category,
+                                EXTRACT(MONTH FROM t.transaction_time AT TIME ZONE 'Asia/Manila') as month,
+                                SUM(ti.quantity) as total_quantity
+                            FROM transaction_items ti
+                            JOIN transactions t ON ti.transaction_ref_id = t.ref_id
+                            JOIN products p ON ti.product_id = p.id
+                            WHERE DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') >= DATE_TRUNC('year', CURRENT_DATE)
+                            AND LOWER(t.transaction_type) = 'sale' AND COALESCE(t.is_cancelled, false) = false
+                            GROUP BY p.name, p.category, month
+                        ),
+                        seasonality_stats AS (
+                            SELECT
+                                product_name,
+                                category,
+                                STDDEV(total_quantity) / NULLIF(AVG(total_quantity), 0) as coeff_variation,
+                                SUM(total_quantity) as total_sales_volume,
+                                COUNT(*) as months_with_sales
+                            FROM monthly_sales
+                            GROUP BY product_name, category
+                            HAVING AVG(total_quantity) > 5 AND COUNT(*) >= 6
+                        )
+                        SELECT
+                            product_name,
+                            category,
+                            total_sales_volume,
+                            ROUND(coeff_variation::numeric, 3) as seasonal_strength,
+                            months_with_sales,
+                            CASE 
+                                WHEN coeff_variation > 0.5 THEN 'STRONG SEASONAL'
+                                WHEN coeff_variation > 0.3 THEN 'MODERATE SEASONAL'
+                                ELSE 'STABLE'
+                            END as seasonality_type
+                        FROM seasonality_stats
+                        WHERE coeff_variation > 0.3
+                        ORDER BY seasonal_strength DESC
+                        LIMIT 20
+                        """
                         
+                        seasonal_df = execute_query_for_dashboard(sql)
                         if seasonal_df is not None and not seasonal_df.empty:
                             st.success(f"✅ Seasonal analysis complete!")
                             st.dataframe(seasonal_df.head(10), use_container_width=True)
@@ -4036,9 +4124,44 @@ def render_advanced_analytics():
             if st.button("🔄 Analyze Product Lifecycle", key="analyze_lifecycle"):
                 with st.spinner("Analyzing product lifecycle stages..."):
                     try:
-                        forecasting_engine = PredictiveForecastingEngine(create_db_connection)
-                        lifecycle_df = forecasting_engine.analyze_product_lifecycle()
+                        # Simplified product lifecycle analysis using SQL
+                        sql = """
+                        WITH product_trends AS (
+                             SELECT
+                                p.name as product_name,
+                                p.category,
+                                MIN(t.transaction_time) as first_sale,
+                                MAX(t.transaction_time) as last_sale,
+                                SUM(ti.quantity) as total_units_sold,
+                                COUNT(DISTINCT t.ref_id) as total_transactions,
+                                SUM(CASE WHEN DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') >= DATE_TRUNC('month', CURRENT_DATE) THEN ti.quantity ELSE 0 END) as last_month_units
+                            FROM transaction_items ti
+                            JOIN transactions t ON ti.transaction_ref_id = t.ref_id
+                            JOIN products p ON ti.product_id = p.id
+                            WHERE LOWER(t.transaction_type) = 'sale' AND COALESCE(t.is_cancelled, false) = false
+                            GROUP BY p.name, p.category
+                        )
+                        SELECT
+                            product_name,
+                            category,
+                            total_units_sold,
+                            total_transactions,
+                            last_month_units,
+                            DATE((NOW() AT TIME ZONE 'Asia/Manila')) - DATE(first_sale) as days_since_first_sale,
+                            DATE((NOW() AT TIME ZONE 'Asia/Manila')) - DATE(last_sale) as days_since_last_sale,
+                            CASE
+                                WHEN DATE((NOW() AT TIME ZONE 'Asia/Manila')) - DATE(first_sale) < 90 AND last_month_units > 50 THEN 'Introduction/Growth'
+                                WHEN total_units_sold > 1000 AND last_month_units > (total_units_sold / 24) THEN 'Maturity'
+                                WHEN last_month_units < (total_units_sold / 50) AND DATE((NOW() AT TIME ZONE 'Asia/Manila')) - DATE(last_sale) > 60 THEN 'Decline'
+                                ELSE 'Stable'
+                            END as lifecycle_stage
+                        FROM product_trends
+                        WHERE total_units_sold > 0
+                        ORDER BY total_units_sold DESC
+                        LIMIT 20
+                        """
                         
+                        lifecycle_df = execute_query_for_dashboard(sql)
                         if lifecycle_df is not None and not lifecycle_df.empty:
                             st.success(f"✅ Lifecycle analysis complete!")
                             st.dataframe(lifecycle_df.head(10), use_container_width=True)
@@ -4068,10 +4191,23 @@ def render_advanced_analytics():
             if st.button("🛒 Analyze Shopping Patterns", key="analyze_patterns"):
                 with st.spinner("Analyzing customer behavior patterns..."):
                     try:
-                        # Initialize Customer Intelligence Engine
-                        customer_engine = CustomerIntelligenceEngine(create_db_connection)
-                        patterns_df = customer_engine.analyze_shopping_patterns()
+                        # Simplified shopping patterns analysis using SQL
+                        sql = """
+                        SELECT
+                            EXTRACT(ISODOW FROM t.transaction_time AT TIME ZONE 'Asia/Manila') as day_of_week,
+                            EXTRACT(HOUR FROM t.transaction_time AT TIME ZONE 'Asia/Manila') as hour,
+                            COUNT(DISTINCT t.ref_id) as transaction_count,
+                            AVG(t.total) as avg_basket_value,
+                            SUM(t.total) as total_revenue
+                        FROM transactions t
+                        WHERE LOWER(t.transaction_type) = 'sale' AND COALESCE(t.is_cancelled, false) = false
+                        AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') >= DATE_TRUNC('month', CURRENT_DATE)
+                        GROUP BY 1, 2
+                        ORDER BY transaction_count DESC
+                        LIMIT 50
+                        """
                         
+                        patterns_df = execute_query_for_dashboard(sql)
                         if patterns_df is not None and not patterns_df.empty:
                             st.success(f"✅ Shopping patterns analyzed!")
                             st.dataframe(patterns_df.head(15), use_container_width=True)
@@ -4094,9 +4230,32 @@ def render_advanced_analytics():
             if st.button("🛍️ Perform Basket Analysis", key="basket_analysis"):
                 with st.spinner("Analyzing product co-purchasing patterns..."):
                     try:
-                        customer_engine = CustomerIntelligenceEngine(create_db_connection)
-                        basket_df = customer_engine.perform_basket_analysis()
+                        # Simplified basket analysis using SQL
+                        sql = """
+                        WITH item_pairs AS (
+                            SELECT
+                                a.product_id as product_a,
+                                b.product_id as product_b,
+                                COUNT(DISTINCT a.transaction_ref_id) as pair_frequency
+                            FROM transaction_items a
+                            JOIN transaction_items b ON a.transaction_ref_id = b.transaction_ref_id AND a.product_id < b.product_id
+                            GROUP BY 1, 2
+                            HAVING COUNT(DISTINCT a.transaction_ref_id) >= 3
+                        )
+                        SELECT
+                            p1.name as product_1,
+                            p2.name as product_2,
+                            ip.pair_frequency,
+                            p1.category as category_1,
+                            p2.category as category_2
+                        FROM item_pairs ip
+                        JOIN products p1 ON ip.product_a = p1.id
+                        JOIN products p2 ON ip.product_b = p2.id
+                        ORDER BY ip.pair_frequency DESC
+                        LIMIT 25
+                        """
                         
+                        basket_df = execute_query_for_dashboard(sql)
                         if basket_df is not None and not basket_df.empty:
                             st.success(f"✅ Basket analysis complete!")
                             st.dataframe(basket_df.head(15), use_container_width=True)
@@ -4119,9 +4278,49 @@ def render_advanced_analytics():
             if st.button("👥 Segment Customers", key="segment_customers"):
                 with st.spinner("Performing RFM customer segmentation..."):
                     try:
-                        customer_engine = CustomerIntelligenceEngine(create_db_connection)
-                        segments_df = customer_engine.segment_customers()
+                        # Simplified RFM customer segmentation using SQL
+                        sql = """
+                        WITH customer_metrics AS (
+                            SELECT
+                                COALESCE(t.customer_ref_id, 'Anonymous_' || (ROW_NUMBER() OVER () % 100)::text) as customer_id,
+                                MAX(DATE(t.transaction_time AT TIME ZONE 'Asia/Manila')) as last_purchase_date,
+                                COUNT(DISTINCT t.ref_id) as frequency,
+                                SUM(t.total) as monetary_value,
+                                DATE((NOW() AT TIME ZONE 'Asia/Manila')) - MAX(DATE(t.transaction_time AT TIME ZONE 'Asia/Manila')) as recency_days
+                            FROM transactions t
+                            WHERE LOWER(t.transaction_type) = 'sale'
+                            AND COALESCE(t.is_cancelled, false) = false
+                            AND (t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '365 days'
+                            GROUP BY 1
+                        ),
+                        rfm_scores AS (
+                            SELECT *,
+                                NTILE(5) OVER (ORDER BY recency_days ASC) as recency_score,
+                                NTILE(5) OVER (ORDER BY frequency DESC) as frequency_score,
+                                NTILE(5) OVER (ORDER BY monetary_value DESC) as monetary_score
+                            FROM customer_metrics
+                        )
+                        SELECT
+                            customer_id,
+                            recency_score, 
+                            frequency_score, 
+                            monetary_score,
+                            CASE
+                                WHEN recency_score >= 4 AND frequency_score >= 4 AND monetary_score >= 4 THEN 'VIP'
+                                WHEN recency_score >= 3 AND frequency_score >= 3 THEN 'Loyal'
+                                WHEN recency_score <= 2 AND frequency_score >= 3 THEN 'At Risk'
+                                WHEN recency_score <= 2 AND frequency_score <= 2 THEN 'Lost'
+                                ELSE 'Regular'
+                            END as customer_segment,
+                            monetary_value as lifetime_value,
+                            frequency as purchase_frequency,
+                            recency_days
+                        FROM rfm_scores
+                        ORDER BY monetary_score DESC, frequency_score DESC, recency_score DESC
+                        LIMIT 100
+                        """
                         
+                        segments_df = execute_query_for_dashboard(sql)
                         if segments_df is not None and not segments_df.empty:
                             st.success(f"✅ Customer segmentation complete!")
                             st.dataframe(segments_df.head(15), use_container_width=True)
@@ -4148,9 +4347,49 @@ def render_advanced_analytics():
         if st.button("🔔 Get Active Alerts", key="get_alerts"):
             with st.spinner("Checking for active alerts..."):
                 try:
-                    # Initialize Smart Alert Manager
-                    alert_manager = SmartAlertManager(create_db_connection)
-                    alerts = alert_manager.get_active_alerts()
+                    # Simplified alert system using SQL
+                    alerts = []
+                    
+                    # Critical stockout alerts
+                    sql_stockout = """
+                    SELECT p.name as product_name, s.name as store_name, i.quantity_on_hand
+                    FROM inventory i
+                    JOIN products p ON i.product_id = p.id
+                    JOIN stores s ON i.store_id = s.id
+                    WHERE i.quantity_on_hand = 0
+                    LIMIT 10
+                    """
+                    df_stockout = execute_query_for_dashboard(sql_stockout)
+                    if df_stockout is not None and not df_stockout.empty:
+                        for _, row in df_stockout.iterrows():
+                            alerts.append({
+                                "type": "CRITICAL",
+                                "icon": "🚨",
+                                "message": f"STOCKOUT: {row['product_name']} at {row['store_name']}",
+                                "action": "Immediate restock required"
+                            })
+                    
+                    # Low inventory warnings
+                    sql_low_stock = """
+                    SELECT p.name as product_name, s.name as store_name,
+                           i.quantity_on_hand, i.warning_stock
+                    FROM inventory i
+                    JOIN products p ON i.product_id = p.id
+                    JOIN stores s ON i.store_id = s.id
+                    WHERE i.quantity_on_hand > 0 
+                    AND i.quantity_on_hand <= COALESCE(i.warning_stock, 5)
+                    ORDER BY i.quantity_on_hand ASC
+                    LIMIT 15
+                    """
+                    df_low_stock = execute_query_for_dashboard(sql_low_stock)
+                    if df_low_stock is not None and not df_low_stock.empty:
+                        for _, row in df_low_stock.iterrows():
+                            alerts.append({
+                                "type": "WARNING",
+                                "icon": "⚠️",
+                                "message": f"LOW STOCK: {row['product_name']} at {row['store_name']} ({int(row['quantity_on_hand'])} left)",
+                                "action": "Consider restocking soon"
+                            })
                     
                     if alerts:
                         st.success(f"✅ Found {len(alerts)} active alerts!")
@@ -4173,31 +4412,111 @@ def render_advanced_analytics():
         if st.button("📊 Generate Weekly Business Review", key="generate_review"):
             with st.spinner("Generating AI-powered business review..."):
                 try:
-                    # Initialize Automated Insight Engine
-                    insight_engine = AutomatedInsightEngine(create_db_connection, get_claude_client)
-                    review = insight_engine.generate_weekly_business_review()
+                    # Simplified weekly business review using SQL and AI
+                    sql = """
+                    WITH weekly_metrics AS (
+                        SELECT
+                            SUM(CASE WHEN (t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '7 days' THEN t.total ELSE 0 END) as current_week_sales,
+                            SUM(CASE WHEN (t.transaction_time AT TIME ZONE 'Asia/Manila') BETWEEN (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '14 days' AND (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '8 days' THEN t.total ELSE 0 END) as previous_week_sales,
+                            COUNT(DISTINCT CASE WHEN (t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '7 days' THEN t.ref_id END) as current_week_tx,
+                            COUNT(DISTINCT CASE WHEN (t.transaction_time AT TIME ZONE 'Asia/Manila') BETWEEN (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '14 days' AND (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '8 days' THEN t.ref_id END) as previous_week_tx
+                        FROM transactions t
+                        WHERE LOWER(t.transaction_type) = 'sale' AND COALESCE(t.is_cancelled, false) = false
+                        AND (t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '14 days'
+                    )
+                    SELECT * FROM weekly_metrics
+                    """
                     
-                    if review and 'summary' in review:
-                        st.success("✅ Weekly business review generated!")
-                        st.markdown(review['summary'])
+                    metrics_df = execute_query_for_dashboard(sql)
+                    if metrics_df is not None and not metrics_df.empty:
+                        metrics = metrics_df.iloc[0]
                         
-                        if 'metrics' in review:
-                            st.markdown("**📈 Key Metrics:**")
-                            metrics = review['metrics']
-                            col1, col2, col3, col4 = st.columns(4)
-                            with col1:
-                                st.metric("Current Week Sales", f"₱{metrics.get('current_week_sales', 0):,.0f}")
-                            with col2:
-                                st.metric("Previous Week Sales", f"₱{metrics.get('previous_week_sales', 0):,.0f}")
-                            with col3:
-                                st.metric("Current Week TX", f"{metrics.get('current_week_tx', 0):,}")
-                            with col4:
-                                st.metric("Previous Week TX", f"{metrics.get('previous_week_tx', 0):,}")
+                        # Generate AI review if Claude is available
+                        client = get_claude_client()
+                        if client:
+                            prompt = f"""
+                            Based on these weekly business metrics, provide a concise business review with key insights and recommendations:
+                            
+                            Current Week Sales: ₱{metrics['current_week_sales']:,.0f}
+                            Previous Week Sales: ₱{metrics['previous_week_sales']:,.0f}
+                            Current Week Transactions: {metrics['current_week_tx']:,}
+                            Previous Week Transactions: {metrics['previous_week_tx']:,}
+                            
+                            Provide a professional business review with:
+                            1. Performance summary
+                            2. Key insights
+                            3. Recommendations
+                            
+                            Keep it concise and actionable.
+                            """
+                            
+                            try:
+                                response = client.messages.create(
+                                    model="claude-3-haiku-20240307",
+                                    max_tokens=600,
+                                    messages=[{"role": "user", "content": prompt}]
+                                )
+                                review_summary = response.content[0].text
+                            except Exception:
+                                review_summary = f"""
+                                **📊 Weekly Business Review**
+                                
+                                **Performance Summary:**
+                                - Current Week Sales: ₱{metrics['current_week_sales']:,.0f}
+                                - Previous Week Sales: ₱{metrics['previous_week_sales']:,.0f}
+                                - Current Week Transactions: {metrics['current_week_tx']:,}
+                                - Previous Week Transactions: {metrics['previous_week_tx']:,}
+                                
+                                **Key Insights:**
+                                - Sales trend analysis available
+                                - Transaction volume tracking active
+                                - Performance metrics calculated
+                                
+                                **Recommendations:**
+                                - Monitor sales trends closely
+                                - Analyze transaction patterns
+                                - Review inventory levels
+                                """
+                        else:
+                            review_summary = f"""
+                            **📊 Weekly Business Review**
+                            
+                            **Performance Summary:**
+                            - Current Week Sales: ₱{metrics['current_week_sales']:,.0f}
+                            - Previous Week Sales: ₱{metrics['previous_week_sales']:,.0f}
+                            - Current Week Transactions: {metrics['current_week_tx']:,}
+                            - Previous Week Transactions: {metrics['previous_week_tx']:,}
+                            
+                            **Key Insights:**
+                            - Sales trend analysis available
+                            - Transaction volume tracking active
+                            - Performance metrics calculated
+                            
+                            **Recommendations:**
+                            - Monitor sales trends closely
+                            - Analyze transaction patterns
+                            - Review inventory levels
+                            """
+                        
+                        st.success("✅ Weekly business review generated!")
+                        st.markdown(review_summary)
+                        
+                        # Display metrics
+                        st.markdown("**📈 Key Metrics:**")
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Current Week Sales", f"₱{metrics['current_week_sales']:,.0f}")
+                        with col2:
+                            st.metric("Previous Week Sales", f"₱{metrics['previous_week_sales']:,.0f}")
+                        with col3:
+                            st.metric("Current Week TX", f"{metrics['current_week_tx']:,}")
+                        with col4:
+                            st.metric("Previous Week TX", f"{metrics['previous_week_tx']:,}")
                         
                         # Download option
                         st.download_button(
                             "📥 Download Business Review",
-                            review['summary'],
+                            review_summary,
                             f"weekly_business_review_{datetime.now().strftime('%Y%m%d')}.md",
                             "text/markdown",
                             use_container_width=True
