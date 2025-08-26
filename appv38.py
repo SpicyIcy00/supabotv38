@@ -2993,6 +2993,379 @@ def resolve_store_ids(store_df, selected_stores, debug=False):
 
 def render_dashboard():
     """Renders the BI dashboard with tabbed navigation separating data visuals and AI hub."""
+    # Import mobile dashboard components
+    try:
+        from supabot.ui.components.mobile_dashboard import MobileDashboard
+        mobile_available = True
+    except ImportError:
+        mobile_available = False
+        st.warning("Mobile components not available. Using desktop layout only.")
+    
+    # Check if mobile components are available and render responsive dashboard
+    if mobile_available:
+        render_responsive_dashboard()
+    else:
+        render_legacy_dashboard()
+
+def render_responsive_dashboard():
+    """Renders the responsive dashboard with mobile optimization."""
+    from supabot.ui.components.mobile_dashboard import MobileDashboard
+    
+    # Get dashboard data
+    dashboard_data = get_dashboard_data()
+    if not dashboard_data:
+        st.error("Failed to load dashboard data")
+        return
+    
+    metrics, sales_df, sales_cat_df, inv_cat_df, top_change_df, cat_change_df, time_filter, selected_stores = dashboard_data
+    
+    # Render responsive dashboard
+    MobileDashboard.render_responsive_dashboard(
+        metrics=metrics,
+        sales_df=sales_df,
+        sales_cat_df=sales_cat_df,
+        inv_cat_df=inv_cat_df,
+        top_change_df=top_change_df,
+        cat_change_df=cat_change_df,
+        time_filter=time_filter,
+        selected_stores=selected_stores
+    )
+
+def get_dashboard_data():
+    """Get all dashboard data for responsive rendering."""
+    # --- 1. Time and Store Selectors ---
+    filter_col1, filter_col2, filter_col3 = st.columns([2, 2, 2])
+    with filter_col1:
+        time_options = ["1D", "7D", "1M", "6M", "1Y", "Custom"]
+        time_index = time_options.index(st.session_state.dashboard_time_filter) if st.session_state.dashboard_time_filter in time_options else 1
+        st.session_state.dashboard_time_filter = st.radio(
+            "Select Time Period:", options=time_options, index=time_index,
+            horizontal=True, key="time_filter_selector"
+        )
+        
+        # Custom date range (only show if Custom is selected)
+        if st.session_state.dashboard_time_filter == "Custom":
+            st.write("**Custom Date Range:**")
+            
+            custom_start = st.date_input(
+                "From Date", 
+                value=st.session_state.custom_start_date,
+                key="custom_date_start_widget"
+            )
+            
+            custom_end = st.date_input(
+                "To Date", 
+                value=st.session_state.custom_end_date,
+                key="custom_date_end_widget"
+            )
+            
+            # Update session state
+            st.session_state.custom_start_date = custom_start
+            st.session_state.custom_end_date = custom_end
+            
+            # Validate dates
+            if custom_start > custom_end:
+                st.error("Start date cannot be after end date!")
+                return None
+    
+    with filter_col2:
+        # Middle column - can be used for additional filters or left empty
+        pass
+
+    with filter_col3:
+        store_df = get_store_list()
+        store_list = store_df['name'].tolist()
+        all_stores_option = "All Stores"
+        
+        st.session_state.dashboard_store_filter = st.multiselect(
+            "Select Store(s):",
+            options=[all_stores_option] + store_list,
+            default=st.session_state.dashboard_store_filter
+        )
+
+    # --- Process Filters ---
+    time_filter = st.session_state.dashboard_time_filter
+    selected_stores = st.session_state.dashboard_store_filter
+
+    # Process store filter with robust resolution
+    store_filter_ids = None
+    if selected_stores and "All Stores" not in selected_stores and not store_df.empty:
+        debug_mode = st.session_state.get('debug_mode', False)
+        store_filter_ids, unmatched_names = resolve_store_ids(store_df, selected_stores, debug=debug_mode)
+        # Surface warnings for unmatched selections
+        for nm in unmatched_names:
+            st.warning(f"Store '{nm}' not found or ambiguous in database after normalization")
+        if store_filter_ids is None:
+            st.warning("No valid stores found in selection")
+    
+    # Get all dashboard data
+    try:
+        with st.spinner("Loading dashboard data..."):
+            # Get metrics
+            metrics = get_dashboard_metrics(time_filter, store_filter_ids)
+            
+            # Get sales trend data
+            sales_df = get_sales_trend_data(time_filter, store_filter_ids)
+            
+            # Get category data
+            sales_cat_df = get_sales_by_category_data(time_filter, store_filter_ids)
+            inv_cat_df = get_inventory_by_category_data(store_filter_ids)
+            
+            # Get top products and categories with change data
+            top_change_df = get_top_products_with_change(time_filter, store_filter_ids)
+            cat_change_df = get_categories_with_change(time_filter, store_filter_ids)
+            
+            return (metrics, sales_df, sales_cat_df, inv_cat_df, top_change_df, cat_change_df, time_filter, selected_stores)
+    
+    except Exception as e:
+        st.error(f"Error loading dashboard data: {str(e)}")
+        return None
+
+def get_sales_trend_data(time_filter: str, store_filter_ids: Optional[List[int]] = None) -> pd.DataFrame:
+    """Get sales trend data for charts."""
+    try:
+        date_range = get_intelligent_date_range(time_filter)
+        start_date = date_range['start_date']
+        end_date = date_range['end_date']
+        
+        # Build SQL query
+        sql = """
+        SELECT 
+            DATE(t.transaction_date) as date,
+            SUM(t.total) as total_revenue
+        FROM transactions t
+        WHERE t.transaction_date BETWEEN %s AND %s
+        AND LOWER(t.transaction_type) = 'sale'
+        """
+        
+        params = [start_date, end_date]
+        
+        if store_filter_ids:
+            sql += " AND t.store_id = ANY(%s)"
+            params.append(store_filter_ids)
+        
+        sql += """
+        GROUP BY DATE(t.transaction_date)
+        ORDER BY date
+        """
+        
+        result = execute_query_for_dashboard(sql, params)
+        return result if result is not None else pd.DataFrame()
+        
+    except Exception as e:
+        st.error(f"Error getting sales trend data: {str(e)}")
+        return pd.DataFrame()
+
+def get_sales_by_category_data(time_filter: str, store_filter_ids: Optional[List[int]] = None) -> pd.DataFrame:
+    """Get sales by category data."""
+    try:
+        date_range = get_intelligent_date_range(time_filter)
+        start_date = date_range['start_date']
+        end_date = date_range['end_date']
+        
+        sql = """
+        SELECT 
+            p.category,
+            SUM(t.total) as total_revenue
+        FROM transactions t
+        JOIN products p ON t.product_id = p.id
+        WHERE t.transaction_date BETWEEN %s AND %s
+        AND LOWER(t.transaction_type) = 'sale'
+        """
+        
+        params = [start_date, end_date]
+        
+        if store_filter_ids:
+            sql += " AND t.store_id = ANY(%s)"
+            params.append(store_filter_ids)
+        
+        sql += """
+        GROUP BY p.category
+        ORDER BY total_revenue DESC
+        """
+        
+        result = execute_query_for_dashboard(sql, params)
+        return result if result is not None else pd.DataFrame()
+        
+    except Exception as e:
+        st.error(f"Error getting sales by category data: {str(e)}")
+        return pd.DataFrame()
+
+def get_inventory_by_category_data(store_filter_ids: Optional[List[int]] = None) -> pd.DataFrame:
+    """Get inventory by category data."""
+    try:
+        sql = """
+        SELECT 
+            p.category,
+            SUM(i.quantity * p.price) as total_inventory_value
+        FROM inventory i
+        JOIN products p ON i.product_id = p.id
+        WHERE i.quantity > 0
+        """
+        
+        params = []
+        
+        if store_filter_ids:
+            sql += " AND i.store_id = ANY(%s)"
+            params.append(store_filter_ids)
+        
+        sql += """
+        GROUP BY p.category
+        ORDER BY total_inventory_value DESC
+        """
+        
+        result = execute_query_for_dashboard(sql, params)
+        return result if result is not None else pd.DataFrame()
+        
+    except Exception as e:
+        st.error(f"Error getting inventory by category data: {str(e)}")
+        return pd.DataFrame()
+
+def get_top_products_with_change(time_filter: str, store_filter_ids: Optional[List[int]] = None) -> pd.DataFrame:
+    """Get top products with percentage change data."""
+    try:
+        date_range = get_intelligent_date_range(time_filter)
+        start_date = date_range['start_date']
+        end_date = date_range['end_date']
+        
+        # Get previous period dates
+        prev_dates = get_previous_period_dates(start_date, end_date, time_filter)
+        prev_start = prev_dates['start_date']
+        prev_end = prev_dates['end_date']
+        
+        sql = """
+        WITH current_period AS (
+            SELECT 
+                p.product_name,
+                SUM(t.total) as total_revenue
+            FROM transactions t
+            JOIN products p ON t.product_id = p.id
+            WHERE t.transaction_date BETWEEN %s AND %s
+            AND LOWER(t.transaction_type) = 'sale'
+        """
+        
+        params = [start_date, end_date]
+        
+        if store_filter_ids:
+            sql += " AND t.store_id = ANY(%s)"
+            params.append(store_filter_ids)
+        
+        sql += """
+            GROUP BY p.product_name
+        ),
+        previous_period AS (
+            SELECT 
+                p.product_name,
+                SUM(t.total) as total_revenue
+            FROM transactions t
+            JOIN products p ON t.product_id = p.id
+            WHERE t.transaction_date BETWEEN %s AND %s
+            AND LOWER(t.transaction_type) = 'sale'
+        """
+        
+        params.extend([prev_start, prev_end])
+        
+        if store_filter_ids:
+            sql += " AND t.store_id = ANY(%s)"
+            params.append(store_filter_ids)
+        
+        sql += """
+            GROUP BY p.product_name
+        )
+        SELECT 
+            COALESCE(cp.product_name, pp.product_name) as product_name,
+            COALESCE(cp.total_revenue, 0) as total_revenue,
+            COALESCE(pp.total_revenue, 0) as prev_revenue,
+            CASE 
+                WHEN COALESCE(pp.total_revenue, 0) = 0 THEN NULL
+                ELSE ((COALESCE(cp.total_revenue, 0) - COALESCE(pp.total_revenue, 0)) / COALESCE(pp.total_revenue, 0)) * 100
+            END as pct_change
+        FROM current_period cp
+        FULL OUTER JOIN previous_period pp ON cp.product_name = pp.product_name
+        ORDER BY COALESCE(cp.total_revenue, 0) DESC
+        LIMIT 10
+        """
+        
+        result = execute_query_for_dashboard(sql, params)
+        return result if result is not None else pd.DataFrame()
+        
+    except Exception as e:
+        st.error(f"Error getting top products with change data: {str(e)}")
+        return pd.DataFrame()
+
+def get_categories_with_change(time_filter: str, store_filter_ids: Optional[List[int]] = None) -> pd.DataFrame:
+    """Get categories with percentage change data."""
+    try:
+        date_range = get_intelligent_date_range(time_filter)
+        start_date = date_range['start_date']
+        end_date = date_range['end_date']
+        
+        # Get previous period dates
+        prev_dates = get_previous_period_dates(start_date, end_date, time_filter)
+        prev_start = prev_dates['start_date']
+        prev_end = prev_dates['end_date']
+        
+        sql = """
+        WITH current_period AS (
+            SELECT 
+                p.category,
+                SUM(t.total) as total_revenue
+            FROM transactions t
+            JOIN products p ON t.product_id = p.id
+            WHERE t.transaction_date BETWEEN %s AND %s
+            AND LOWER(t.transaction_type) = 'sale'
+        """
+        
+        params = [start_date, end_date]
+        
+        if store_filter_ids:
+            sql += " AND t.store_id = ANY(%s)"
+            params.append(store_filter_ids)
+        
+        sql += """
+            GROUP BY p.category
+        ),
+        previous_period AS (
+            SELECT 
+                p.category,
+                SUM(t.total) as total_revenue
+            FROM transactions t
+            JOIN products p ON t.product_id = p.id
+            WHERE t.transaction_date BETWEEN %s AND %s
+            AND LOWER(t.transaction_type) = 'sale'
+        """
+        
+        params.extend([prev_start, prev_end])
+        
+        if store_filter_ids:
+            sql += " AND t.store_id = ANY(%s)"
+            params.append(store_filter_ids)
+        
+        sql += """
+            GROUP BY p.category
+        )
+        SELECT 
+            COALESCE(cp.category, pp.category) as category,
+            COALESCE(cp.total_revenue, 0) as total_revenue,
+            COALESCE(pp.total_revenue, 0) as prev_revenue,
+            CASE 
+                WHEN COALESCE(pp.total_revenue, 0) = 0 THEN NULL
+                ELSE ((COALESCE(cp.total_revenue, 0) - COALESCE(pp.total_revenue, 0)) / COALESCE(pp.total_revenue, 0)) * 100
+            END as pct_change
+        FROM current_period cp
+        FULL OUTER JOIN previous_period pp ON cp.category = pp.category
+        ORDER BY COALESCE(cp.total_revenue, 0) DESC
+        """
+        
+        result = execute_query_for_dashboard(sql, params)
+        return result if result is not None else pd.DataFrame()
+        
+    except Exception as e:
+        st.error(f"Error getting categories with change data: {str(e)}")
+        return pd.DataFrame()
+
+def render_legacy_dashboard():
+    """Renders the legacy desktop-only dashboard."""
     st.markdown('<div class="main-header"><h1>📊 SupaBot Ultimate BI Dashboard</h1><p>Real-time Business Intelligence powered by AI</p></div>', unsafe_allow_html=True)
 
     dashboard_tab = st.container()
