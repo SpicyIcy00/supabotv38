@@ -6,11 +6,11 @@ import streamlit as st
 import pandas as pd
 from typing import Dict, Any, Optional, List
 
-from .mobile.responsive_wrapper import ResponsiveWrapper
-from .mobile.kpi_cards import MobileKPICards
-from .mobile.product_list import MobileProductList
-from .mobile.charts import MobileCharts
-from .mobile.navigation import MobileNavigation
+from supabot.ui.components.mobile.responsive_wrapper import ResponsiveWrapper
+from supabot.ui.components.mobile.kpi_cards import MobileKPICards
+from supabot.ui.components.mobile.product_list import MobileProductList
+from supabot.ui.components.mobile.charts import MobileCharts
+from supabot.ui.components.mobile.navigation import MobileNavigation
 
 
 class MobileDashboard:
