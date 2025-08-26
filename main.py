@@ -16,6 +16,7 @@ from appv38 import (
     render_chat,
     render_settings,
     render_ai_intelligence_hub,
+    render_advanced_analytics,
     run_benchmarks,
 )
 
@@ -36,6 +37,7 @@ def main():
             "Dashboard",
             "Product Sales Report",
             "Chart View",
+            "Advanced Analytics",
             "AI Assistant",
             "Settings",
         ]
@@ -57,6 +59,7 @@ def main():
             "Dashboard": render_dashboard,
             "Product Sales Report": render_product_sales_report,
             "Chart View": render_chart_view,
+            "Advanced Analytics": render_advanced_analytics,
             "AI Assistant": render_chat,
             "Settings": render_settings,
         }

@@ -3553,355 +3553,7 @@ def render_dashboard():
         # (Removed bottom Sales Trend Analysis and Inventory by Category sections)
         st.markdown('</div>', unsafe_allow_html=True)  # Close chart-container
         
-        # --- Advanced Data Analytics Tab ---
-        st.markdown("---")
-        
-        # Create tabs for different analytics sections
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "🔍 AI Analytics", 
-            "📊 Predictive Forecasting", 
-            "👥 Customer Intelligence", 
-            "🚨 Smart Alerts", 
-            "🤖 Automated Insights"
-        ])
-        
-        # Tab 1: AI Analytics Engine
-        with tab1:
-            st.markdown("### 🔍 AI Analytics Engine")
-            st.caption("Advanced analytics for hidden demand detection and stockout prediction")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if st.button("🔍 Detect Hidden Demand", key="detect_hidden_demand"):
-                    with st.spinner("Analyzing sales patterns and inventory levels..."):
-                        try:
-                            # Initialize AI Analytics Engine
-                            ai_engine = get_ai_analytics_engine()
-                            hidden_demand_df = ai_engine.detect_hidden_demand(days_back=90)
-                            
-                            if hidden_demand_df is not None and not hidden_demand_df.empty:
-                                st.success(f"✅ Found {len(hidden_demand_df)} products with hidden demand!")
-                                st.dataframe(hidden_demand_df.head(10), use_container_width=True)
-                                
-                                # Download option
-                                csv_data = hidden_demand_df.to_csv(index=False)
-                                st.download_button(
-                                    "📥 Download Hidden Demand Report",
-                                    csv_data,
-                                    "hidden_demand_analysis.csv",
-                                    "text/csv",
-                                    use_container_width=True
-                                )
-                            else:
-                                st.info("No hidden demand patterns detected.")
-                        except Exception as e:
-                            st.error(f"Error analyzing hidden demand: {e}")
-            
-            with col2:
-                if st.button("🧯 Predict Stockouts", key="predict_stockouts"):
-                    with st.spinner("Calculating days until stockout..."):
-                        try:
-                            # Get inventory and sales velocity data
-                            sql = """
-                            WITH daily_velocity AS (
-                                SELECT 
-                                    ti.product_id,
-                                    t.store_id,
-                                    DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') as sale_date,
-                                    SUM(ti.quantity) as daily_sales
-                                FROM transaction_items ti
-                                JOIN transactions t ON ti.transaction_ref_id = t.ref_id
-                                WHERE LOWER(t.transaction_type) = 'sale' 
-                                AND COALESCE(t.is_cancelled, false) = false
-                                AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '30 days'
-                                GROUP BY ti.product_id, t.store_id, DATE(t.transaction_time AT TIME ZONE 'Asia/Manila')
-                            ),
-                            avg_velocity AS (
-                                SELECT 
-                                    product_id,
-                                    store_id,
-                                    AVG(daily_sales) as avg_daily_demand,
-                                    STDDEV(daily_sales) as demand_volatility
-                                FROM daily_velocity
-                                GROUP BY product_id, store_id
-                            )
-                            SELECT 
-                                p.name as product_name,
-                                s.name as store_name,
-                                p.category,
-                                i.quantity_on_hand,
-                                COALESCE(av.avg_daily_demand, 0) as avg_daily_demand,
-                                CASE 
-                                    WHEN COALESCE(av.avg_daily_demand, 0) > 0 
-                                    THEN FLOOR(i.quantity_on_hand / av.avg_daily_demand)
-                                    ELSE NULL 
-                                END as days_until_stockout,
-                                CASE 
-                                    WHEN i.quantity_on_hand <= COALESCE(i.warning_stock, 5) THEN 'CRITICAL'
-                                    WHEN COALESCE(av.avg_daily_demand, 0) > 0 AND (i.quantity_on_hand / av.avg_daily_demand) <= 7 THEN 'WARNING'
-                                    ELSE 'SAFE'
-                                END as stockout_risk
-                            FROM inventory i
-                            JOIN products p ON i.product_id = p.id
-                            JOIN stores s ON i.store_id = s.id
-                            LEFT JOIN avg_velocity av ON i.product_id = av.product_id AND i.store_id = av.store_id
-                            WHERE i.quantity_on_hand > 0
-                            ORDER BY days_until_stockout ASC NULLS LAST
-                            LIMIT 20
-                            """
-                            
-                            stockout_df = execute_query_for_dashboard(sql)
-                            if stockout_df is not None and not stockout_df.empty:
-                                st.success(f"✅ Stockout analysis complete!")
-                                st.dataframe(stockout_df, use_container_width=True)
-                                
-                                # Download option
-                                csv_data = stockout_df.to_csv(index=False)
-                                st.download_button(
-                                    "📥 Download Stockout Predictions",
-                                    csv_data,
-                                    "stockout_predictions.csv",
-                                    "text/csv",
-                                    use_container_width=True
-                                )
-                            else:
-                                st.info("No stockout risks detected.")
-                        except Exception as e:
-                            st.error(f"Error predicting stockouts: {e}")
-        
-        # Tab 2: Predictive Forecasting Engine
-        with tab2:
-            st.markdown("### 📊 Predictive Forecasting Engine")
-            st.caption("Demand trends, seasonal patterns, and product lifecycle analysis")
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                if st.button("📈 Forecast Demand Trends", key="forecast_demand"):
-                    with st.spinner("Analyzing demand trends..."):
-                        try:
-                            # Initialize Predictive Forecasting Engine
-                            forecasting_engine = PredictiveForecastingEngine(create_db_connection)
-                            trends_df = forecasting_engine.forecast_demand_trends(days_ahead=30)
-                            
-                            if trends_df is not None and not trends_df.empty:
-                                st.success(f"✅ Demand trends analyzed!")
-                                st.dataframe(trends_df.head(10), use_container_width=True)
-                                
-                                # Download option
-                                csv_data = trends_df.to_csv(index=False)
-                                st.download_button(
-                                    "📥 Download Demand Trends",
-                                    csv_data,
-                                    "demand_trends.csv",
-                                    "text/csv",
-                                    use_container_width=True
-                                )
-                            else:
-                                st.info("No demand trends data available.")
-                        except Exception as e:
-                            st.error(f"Error forecasting demand: {e}")
-            
-            with col2:
-                if st.button("🌿 Identify Seasonal Products", key="identify_seasonal"):
-                    with st.spinner("Analyzing seasonal patterns..."):
-                        try:
-                            forecasting_engine = PredictiveForecastingEngine(create_db_connection)
-                            seasonal_df = forecasting_engine.identify_seasonal_products()
-                            
-                            if seasonal_df is not None and not seasonal_df.empty:
-                                st.success(f"✅ Seasonal analysis complete!")
-                                st.dataframe(seasonal_df.head(10), use_container_width=True)
-                                
-                                # Download option
-                                csv_data = seasonal_df.to_csv(index=False)
-                                st.download_button(
-                                    "📥 Download Seasonal Analysis",
-                                    csv_data,
-                                    "seasonal_products.csv",
-                                    "text/csv",
-                                    use_container_width=True
-                                )
-                            else:
-                                st.info("No seasonal patterns detected.")
-                        except Exception as e:
-                            st.error(f"Error analyzing seasonality: {e}")
-            
-            with col3:
-                if st.button("🔄 Analyze Product Lifecycle", key="analyze_lifecycle"):
-                    with st.spinner("Analyzing product lifecycle stages..."):
-                        try:
-                            forecasting_engine = PredictiveForecastingEngine(create_db_connection)
-                            lifecycle_df = forecasting_engine.analyze_product_lifecycle()
-                            
-                            if lifecycle_df is not None and not lifecycle_df.empty:
-                                st.success(f"✅ Lifecycle analysis complete!")
-                                st.dataframe(lifecycle_df.head(10), use_container_width=True)
-                                
-                                # Download option
-                                csv_data = lifecycle_df.to_csv(index=False)
-                                st.download_button(
-                                    "📥 Download Lifecycle Analysis",
-                                    csv_data,
-                                    "product_lifecycle.csv",
-                                    "text/csv",
-                                    use_container_width=True
-                                )
-                            else:
-                                st.info("No lifecycle data available.")
-                        except Exception as e:
-                            st.error(f"Error analyzing lifecycle: {e}")
-        
-        # Tab 3: Customer Intelligence Engine
-        with tab3:
-            st.markdown("### 👥 Customer Intelligence Engine")
-            st.caption("Shopping patterns, basket analysis, and customer segmentation")
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                if st.button("🛒 Analyze Shopping Patterns", key="analyze_patterns"):
-                    with st.spinner("Analyzing customer behavior patterns..."):
-                        try:
-                            # Initialize Customer Intelligence Engine
-                            customer_engine = CustomerIntelligenceEngine(create_db_connection)
-                            patterns_df = customer_engine.analyze_shopping_patterns()
-                            
-                            if patterns_df is not None and not patterns_df.empty:
-                                st.success(f"✅ Shopping patterns analyzed!")
-                                st.dataframe(patterns_df.head(15), use_container_width=True)
-                                
-                                # Download option
-                                csv_data = patterns_df.to_csv(index=False)
-                                st.download_button(
-                                    "📥 Download Shopping Patterns",
-                                    csv_data,
-                                    "shopping_patterns.csv",
-                                    "text/csv",
-                                    use_container_width=True
-                                )
-                            else:
-                                st.info("No shopping pattern data available.")
-                        except Exception as e:
-                            st.error(f"Error analyzing patterns: {e}")
-            
-            with col2:
-                if st.button("🛍️ Perform Basket Analysis", key="basket_analysis"):
-                    with st.spinner("Analyzing product co-purchasing patterns..."):
-                        try:
-                            customer_engine = CustomerIntelligenceEngine(create_db_connection)
-                            basket_df = customer_engine.perform_basket_analysis()
-                            
-                            if basket_df is not None and not basket_df.empty:
-                                st.success(f"✅ Basket analysis complete!")
-                                st.dataframe(basket_df.head(15), use_container_width=True)
-                                
-                                # Download option
-                                csv_data = basket_df.to_csv(index=False)
-                                st.download_button(
-                                    "📥 Download Basket Analysis",
-                                    csv_data,
-                                    "basket_analysis.csv",
-                                    "text/csv",
-                                    use_container_width=True
-                                )
-                            else:
-                                st.info("No basket analysis data available.")
-                        except Exception as e:
-                            st.error(f"Error analyzing basket: {e}")
-            
-            with col3:
-                if st.button("👥 Segment Customers", key="segment_customers"):
-                    with st.spinner("Performing RFM customer segmentation..."):
-                        try:
-                            customer_engine = CustomerIntelligenceEngine(create_db_connection)
-                            segments_df = customer_engine.segment_customers()
-                            
-                            if segments_df is not None and not segments_df.empty:
-                                st.success(f"✅ Customer segmentation complete!")
-                                st.dataframe(segments_df.head(15), use_container_width=True)
-                                
-                                # Download option
-                                csv_data = segments_df.to_csv(index=False)
-                                st.download_button(
-                                    "📥 Download Customer Segments",
-                                    csv_data,
-                                    "customer_segments.csv",
-                                    "text/csv",
-                                    use_container_width=True
-                                )
-                            else:
-                                st.info("No customer segmentation data available.")
-                        except Exception as e:
-                            st.error(f"Error segmenting customers: {e}")
-        
-        # Tab 4: Smart Alert Manager
-        with tab4:
-            st.markdown("### 🚨 Smart Alert Manager")
-            st.caption("Proactive inventory and business alerts")
-            
-            if st.button("🔔 Get Active Alerts", key="get_alerts"):
-                with st.spinner("Checking for active alerts..."):
-                    try:
-                        # Initialize Smart Alert Manager
-                        alert_manager = SmartAlertManager(create_db_connection)
-                        alerts = alert_manager.get_active_alerts()
-                        
-                        if alerts:
-                            st.success(f"✅ Found {len(alerts)} active alerts!")
-                            
-                            for alert in alerts:
-                                with st.container(border=True):
-                                    st.markdown(f"**{alert['icon']} {alert['type']}**")
-                                    st.write(alert['message'])
-                                    st.caption(f"Action: {alert['alert']['action']}")
-                        else:
-                            st.info("✅ No active alerts at this time.")
-                    except Exception as e:
-                        st.error(f"Error retrieving alerts: {e}")
-        
-        # Tab 5: Automated Insight Engine
-        with tab5:
-            st.markdown("### 🤖 Automated Insight Engine")
-            st.caption("AI-powered weekly business reviews and insights")
-            
-            if st.button("📊 Generate Weekly Business Review", key="generate_review"):
-                with st.spinner("Generating AI-powered business review..."):
-                    try:
-                        # Initialize Automated Insight Engine
-                        insight_engine = AutomatedInsightEngine(create_db_connection, get_claude_client)
-                        review = insight_engine.generate_weekly_business_review()
-                        
-                        if review and 'summary' in review:
-                            st.success("✅ Weekly business review generated!")
-                            st.markdown(review['summary'])
-                            
-                            if 'metrics' in review:
-                                st.markdown("**📈 Key Metrics:**")
-                                metrics = review['metrics']
-                                col1, col2, col3, col4 = st.columns(4)
-                                with col1:
-                                    st.metric("Current Week Sales", f"₱{metrics.get('current_week_sales', 0):,.0f}")
-                                with col2:
-                                    st.metric("Previous Week Sales", f"₱{metrics.get('previous_week_sales', 0):,.0f}")
-                                with col3:
-                                    st.metric("Current Week TX", f"{metrics.get('current_week_tx', 0):,}")
-                                with col4:
-                                    st.metric("Previous Week TX", f"{metrics.get('previous_week_tx', 0):,}")
-                            
-                            # Download option
-                            st.download_button(
-                                "📥 Download Business Review",
-                                review['summary'],
-                                f"weekly_business_review_{datetime.now().strftime('%Y%m%d')}.md",
-                                "text/markdown",
-                                use_container_width=True
-                            )
-                        else:
-                            st.info("No business review data available.")
-                    except Exception as e:
-                        st.error(f"Error generating business review: {e}")
+
         
         # --- AI Intelligence Section (Fullscreen) ---
         st.markdown("---")
@@ -4189,6 +3841,371 @@ def generate_ai_intelligence_summary():
         
     except Exception as e:
         return f"Error generating AI intelligence summary: {e}"
+
+# Advanced Analytics Page
+def render_advanced_analytics():
+    """Render the Advanced Analytics page with comprehensive analytics engines."""
+    st.markdown('<div class="main-header"><h1>🔬 Advanced Analytics</h1><p>Comprehensive business intelligence powered by AI and predictive analytics</p></div>', unsafe_allow_html=True)
+
+    # Reuse global filters from dashboard
+    time_filter = st.session_state.get("dashboard_time_filter", "7D")
+    selected_stores = st.session_state.get("dashboard_store_filter", [])
+    store_df = get_store_list()
+    store_filter_ids = None
+    if selected_stores and "All Stores" not in selected_stores and not store_df.empty:
+        ids = []
+        for store_name in selected_stores:
+            ids.extend(store_df[store_df['name'] == store_name]['id'].tolist())
+        store_filter_ids = ids or None
+    
+    st.caption(f"Filters • Period: {time_filter} • Stores: {'All' if not store_filter_ids else len(store_filter_ids)}")
+
+    # Create tabs for different analytics sections
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "🔍 AI Analytics", 
+        "📊 Predictive Forecasting", 
+        "👥 Customer Intelligence", 
+        "🚨 Smart Alerts", 
+        "🤖 Automated Insights"
+    ])
+    
+    # Tab 1: AI Analytics Engine
+    with tab1:
+        st.markdown("### 🔍 AI Analytics Engine")
+        st.caption("Advanced analytics for hidden demand detection and stockout prediction")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🔍 Detect Hidden Demand", key="detect_hidden_demand"):
+                with st.spinner("Analyzing sales patterns and inventory levels..."):
+                    try:
+                        # Initialize AI Analytics Engine
+                        ai_engine = get_ai_analytics_engine()
+                        hidden_demand_df = ai_engine.detect_hidden_demand(days_back=90)
+                        
+                        if hidden_demand_df is not None and not hidden_demand_df.empty:
+                            st.success(f"✅ Found {len(hidden_demand_df)} products with hidden demand!")
+                            st.dataframe(hidden_demand_df.head(10), use_container_width=True)
+                            
+                            # Download option
+                            csv_data = hidden_demand_df.to_csv(index=False)
+                            st.download_button(
+                                "📥 Download Hidden Demand Report",
+                                csv_data,
+                                "hidden_demand_analysis.csv",
+                                "text/csv",
+                                use_container_width=True
+                            )
+                        else:
+                            st.info("No hidden demand patterns detected.")
+                    except Exception as e:
+                        st.error(f"Error analyzing hidden demand: {e}")
+        
+        with col2:
+            if st.button("🧯 Predict Stockouts", key="predict_stockouts"):
+                with st.spinner("Calculating days until stockout..."):
+                    try:
+                        # Get inventory and sales velocity data
+                        sql = """
+                        WITH daily_velocity AS (
+                            SELECT 
+                                ti.product_id,
+                                t.store_id,
+                                DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') as sale_date,
+                                SUM(ti.quantity) as daily_sales
+                            FROM transaction_items ti
+                            JOIN transactions t ON ti.transaction_ref_id = t.ref_id
+                            WHERE LOWER(t.transaction_type) = 'sale' 
+                            AND COALESCE(t.is_cancelled, false) = false
+                            AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '30 days'
+                            GROUP BY ti.product_id, t.store_id, DATE(t.transaction_time AT TIME ZONE 'Asia/Manila')
+                        ),
+                        avg_velocity AS (
+                            SELECT 
+                                product_id,
+                                store_id,
+                                AVG(daily_sales) as avg_daily_demand,
+                                STDDEV(daily_sales) as demand_volatility
+                            FROM daily_velocity
+                            GROUP BY product_id, store_id
+                        )
+                        SELECT 
+                            p.name as product_name,
+                            s.name as store_name,
+                            p.category,
+                            i.quantity_on_hand,
+                            COALESCE(av.avg_daily_demand, 0) as avg_daily_demand,
+                            CASE 
+                                WHEN COALESCE(av.avg_daily_demand, 0) > 0 
+                                THEN FLOOR(i.quantity_on_hand / av.avg_daily_demand)
+                                ELSE NULL 
+                            END as days_until_stockout,
+                            CASE 
+                                WHEN i.quantity_on_hand <= COALESCE(i.warning_stock, 5) THEN 'CRITICAL'
+                                WHEN COALESCE(av.avg_daily_demand, 0) > 0 AND (i.quantity_on_hand / av.avg_daily_demand) <= 7 THEN 'WARNING'
+                                ELSE 'SAFE'
+                            END as stockout_risk
+                        FROM inventory i
+                        JOIN products p ON i.product_id = p.id
+                        JOIN stores s ON i.store_id = s.id
+                        LEFT JOIN avg_velocity av ON i.product_id = av.product_id AND i.store_id = av.store_id
+                        WHERE i.quantity_on_hand > 0
+                        ORDER BY days_until_stockout ASC NULLS LAST
+                        LIMIT 20
+                        """
+                        
+                        stockout_df = execute_query_for_dashboard(sql)
+                        if stockout_df is not None and not stockout_df.empty:
+                            st.success(f"✅ Stockout analysis complete!")
+                            st.dataframe(stockout_df, use_container_width=True)
+                            
+                            # Download option
+                            csv_data = stockout_df.to_csv(index=False)
+                            st.download_button(
+                                "📥 Download Stockout Predictions",
+                                csv_data,
+                                "stockout_predictions.csv",
+                                "text/csv",
+                                use_container_width=True
+                            )
+                        else:
+                            st.info("No stockout risks detected.")
+                    except Exception as e:
+                        st.error(f"Error predicting stockouts: {e}")
+    
+    # Tab 2: Predictive Forecasting Engine
+    with tab2:
+        st.markdown("### 📊 Predictive Forecasting Engine")
+        st.caption("Demand trends, seasonal patterns, and product lifecycle analysis")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("📈 Forecast Demand Trends", key="forecast_demand"):
+                with st.spinner("Analyzing demand trends..."):
+                    try:
+                        # Initialize Predictive Forecasting Engine
+                        forecasting_engine = PredictiveForecastingEngine(create_db_connection)
+                        trends_df = forecasting_engine.forecast_demand_trends(days_ahead=30)
+                        
+                        if trends_df is not None and not trends_df.empty:
+                            st.success(f"✅ Demand trends analyzed!")
+                            st.dataframe(trends_df.head(10), use_container_width=True)
+                            
+                            # Download option
+                            csv_data = trends_df.to_csv(index=False)
+                            st.download_button(
+                                "📥 Download Demand Trends",
+                                csv_data,
+                                "demand_trends.csv",
+                                "text/csv",
+                                use_container_width=True
+                            )
+                        else:
+                            st.info("No demand trends data available.")
+                    except Exception as e:
+                        st.error(f"Error forecasting demand: {e}")
+        
+        with col2:
+            if st.button("🌿 Identify Seasonal Products", key="identify_seasonal"):
+                with st.spinner("Analyzing seasonal patterns..."):
+                    try:
+                        forecasting_engine = PredictiveForecastingEngine(create_db_connection)
+                        seasonal_df = forecasting_engine.identify_seasonal_products()
+                        
+                        if seasonal_df is not None and not seasonal_df.empty:
+                            st.success(f"✅ Seasonal analysis complete!")
+                            st.dataframe(seasonal_df.head(10), use_container_width=True)
+                            
+                            # Download option
+                            csv_data = seasonal_df.to_csv(index=False)
+                            st.download_button(
+                                "📥 Download Seasonal Analysis",
+                                csv_data,
+                                "seasonal_products.csv",
+                                "text/csv",
+                                use_container_width=True
+                            )
+                        else:
+                            st.info("No seasonal patterns detected.")
+                    except Exception as e:
+                        st.error(f"Error analyzing seasonality: {e}")
+        
+        with col3:
+            if st.button("🔄 Analyze Product Lifecycle", key="analyze_lifecycle"):
+                with st.spinner("Analyzing product lifecycle stages..."):
+                    try:
+                        forecasting_engine = PredictiveForecastingEngine(create_db_connection)
+                        lifecycle_df = forecasting_engine.analyze_product_lifecycle()
+                        
+                        if lifecycle_df is not None and not lifecycle_df.empty:
+                            st.success(f"✅ Lifecycle analysis complete!")
+                            st.dataframe(lifecycle_df.head(10), use_container_width=True)
+                            
+                            # Download option
+                            csv_data = lifecycle_df.to_csv(index=False)
+                            st.download_button(
+                                "📥 Download Lifecycle Analysis",
+                                csv_data,
+                                "product_lifecycle.csv",
+                                "text/csv",
+                                use_container_width=True
+                            )
+                        else:
+                            st.info("No lifecycle data available.")
+                    except Exception as e:
+                        st.error(f"Error analyzing lifecycle: {e}")
+    
+    # Tab 3: Customer Intelligence Engine
+    with tab3:
+        st.markdown("### 👥 Customer Intelligence Engine")
+        st.caption("Shopping patterns, basket analysis, and customer segmentation")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("🛒 Analyze Shopping Patterns", key="analyze_patterns"):
+                with st.spinner("Analyzing customer behavior patterns..."):
+                    try:
+                        # Initialize Customer Intelligence Engine
+                        customer_engine = CustomerIntelligenceEngine(create_db_connection)
+                        patterns_df = customer_engine.analyze_shopping_patterns()
+                        
+                        if patterns_df is not None and not patterns_df.empty:
+                            st.success(f"✅ Shopping patterns analyzed!")
+                            st.dataframe(patterns_df.head(15), use_container_width=True)
+                            
+                            # Download option
+                            csv_data = patterns_df.to_csv(index=False)
+                            st.download_button(
+                                "📥 Download Shopping Patterns",
+                                csv_data,
+                                "shopping_patterns.csv",
+                                "text/csv",
+                                use_container_width=True
+                            )
+                        else:
+                            st.info("No shopping pattern data available.")
+                    except Exception as e:
+                        st.error(f"Error analyzing patterns: {e}")
+        
+        with col2:
+            if st.button("🛍️ Perform Basket Analysis", key="basket_analysis"):
+                with st.spinner("Analyzing product co-purchasing patterns..."):
+                    try:
+                        customer_engine = CustomerIntelligenceEngine(create_db_connection)
+                        basket_df = customer_engine.perform_basket_analysis()
+                        
+                        if basket_df is not None and not basket_df.empty:
+                            st.success(f"✅ Basket analysis complete!")
+                            st.dataframe(basket_df.head(15), use_container_width=True)
+                            
+                            # Download option
+                            csv_data = basket_df.to_csv(index=False)
+                            st.download_button(
+                                "📥 Download Basket Analysis",
+                                csv_data,
+                                "basket_analysis.csv",
+                                "text/csv",
+                                use_container_width=True
+                            )
+                        else:
+                            st.info("No basket analysis data available.")
+                    except Exception as e:
+                        st.error(f"Error analyzing basket: {e}")
+        
+        with col3:
+            if st.button("👥 Segment Customers", key="segment_customers"):
+                with st.spinner("Performing RFM customer segmentation..."):
+                    try:
+                        customer_engine = CustomerIntelligenceEngine(create_db_connection)
+                        segments_df = customer_engine.segment_customers()
+                        
+                        if segments_df is not None and not segments_df.empty:
+                            st.success(f"✅ Customer segmentation complete!")
+                            st.dataframe(segments_df.head(15), use_container_width=True)
+                            
+                            # Download option
+                            csv_data = segments_df.to_csv(index=False)
+                            st.download_button(
+                                "📥 Download Customer Segments",
+                                csv_data,
+                                "customer_segments.csv",
+                                "text/csv",
+                                use_container_width=True
+                            )
+                        else:
+                            st.info("No customer segmentation data available.")
+                    except Exception as e:
+                        st.error(f"Error segmenting customers: {e}")
+    
+    # Tab 4: Smart Alert Manager
+    with tab4:
+        st.markdown("### 🚨 Smart Alert Manager")
+        st.caption("Proactive inventory and business alerts")
+        
+        if st.button("🔔 Get Active Alerts", key="get_alerts"):
+            with st.spinner("Checking for active alerts..."):
+                try:
+                    # Initialize Smart Alert Manager
+                    alert_manager = SmartAlertManager(create_db_connection)
+                    alerts = alert_manager.get_active_alerts()
+                    
+                    if alerts:
+                        st.success(f"✅ Found {len(alerts)} active alerts!")
+                        
+                        for alert in alerts:
+                            with st.container(border=True):
+                                st.markdown(f"**{alert['icon']} {alert['type']}**")
+                                st.write(alert['message'])
+                                st.caption(f"Action: {alert['action']}")
+                    else:
+                        st.info("✅ No active alerts at this time.")
+                except Exception as e:
+                    st.error(f"Error retrieving alerts: {e}")
+    
+    # Tab 5: Automated Insight Engine
+    with tab5:
+        st.markdown("### 🤖 Automated Insight Engine")
+        st.caption("AI-powered weekly business reviews and insights")
+        
+        if st.button("📊 Generate Weekly Business Review", key="generate_review"):
+            with st.spinner("Generating AI-powered business review..."):
+                try:
+                    # Initialize Automated Insight Engine
+                    insight_engine = AutomatedInsightEngine(create_db_connection, get_claude_client)
+                    review = insight_engine.generate_weekly_business_review()
+                    
+                    if review and 'summary' in review:
+                        st.success("✅ Weekly business review generated!")
+                        st.markdown(review['summary'])
+                        
+                        if 'metrics' in review:
+                            st.markdown("**📈 Key Metrics:**")
+                            metrics = review['metrics']
+                            col1, col2, col3, col4 = st.columns(4)
+                            with col1:
+                                st.metric("Current Week Sales", f"₱{metrics.get('current_week_sales', 0):,.0f}")
+                            with col2:
+                                st.metric("Previous Week Sales", f"₱{metrics.get('previous_week_sales', 0):,.0f}")
+                            with col3:
+                                st.metric("Current Week TX", f"{metrics.get('current_week_tx', 0):,}")
+                            with col4:
+                                st.metric("Previous Week TX", f"{metrics.get('previous_week_tx', 0):,}")
+                        
+                        # Download option
+                        st.download_button(
+                            "📥 Download Business Review",
+                            review['summary'],
+                            f"weekly_business_review_{datetime.now().strftime('%Y%m%d')}.md",
+                            "text/markdown",
+                            use_container_width=True
+                        )
+                    else:
+                        st.info("No business review data available.")
+                except Exception as e:
+                    st.error(f"Error generating business review: {e}")
 
 # Enhanced Chat Page with Assistant
 def render_chat():
