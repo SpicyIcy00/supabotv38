@@ -4,7 +4,7 @@ Mobile dashboard integration for responsive SupaBot BI Dashboard.
 
 import streamlit as st
 import pandas as pd
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Callable
 
 from supabot.ui.components.mobile.responsive_wrapper import ResponsiveWrapper
 from supabot.ui.components.mobile.kpi_cards import MobileKPICards
