@@ -28,7 +28,12 @@ This implementation transforms the SupaBot BI Dashboard into a fully mobile-resp
 
 ## 🚀 Quick Start
 
-### Option 1: Use Mobile-Enabled Main App
+### Option 1: Use Mobile-Only App (Recommended)
+```bash
+streamlit run mobile_only.py
+```
+
+### Option 2: Use Mobile-Enabled Main App
 ```bash
 streamlit run main_mobile.py
 ```
@@ -41,7 +46,12 @@ from mobile_dashboard_wrapper import render_responsive_dashboard
 render_responsive_dashboard()
 ```
 
-### Option 3: Manual Integration
+### Option 3: Use Simple Mobile App
+```bash
+streamlit run main_simple_mobile.py
+```
+
+### Option 4: Manual Integration
 ```python
 from supabot.ui.components.mobile_detection import MobileDetection
 from supabot.ui.components.mobile_dashboard_renderer import MobileDashboardRenderer
@@ -58,6 +68,8 @@ else:
 
 ```
 supabotv38/
+├── mobile_only.py                    # Mobile-only app (recommended)
+├── main_simple_mobile.py             # Simple mobile-enabled app
 ├── main_mobile.py                    # Mobile-enabled main app
 ├── mobile_dashboard_wrapper.py       # Simple integration wrapper
 ├── supabot/
@@ -242,6 +254,12 @@ st.write(f"Screen info: {MobileDetection.get_screen_info()}")
 
 ### Local Development
 ```bash
+# Mobile only (recommended)
+streamlit run mobile_only.py
+
+# Simple mobile-enabled
+streamlit run main_simple_mobile.py
+
 # Desktop only
 streamlit run main.py
 
