@@ -74,7 +74,7 @@ LEAST(1.0, GREATEST(0.0,
 ```
 
 ### User Interface Features
-- **Configurable Parameters**: Analysis period (90, 120, 180, 365 days) and confidence threshold (0.3-0.9)
+- **Configurable Parameters**: Analysis period (7, 14, 30, 60, 90 days) and confidence threshold (0.3-0.9)
 - **Summary Metrics**: Urgent restocks, high confidence items, total estimated weekly demand
 - **Conditional Formatting**: Color-coded confidence levels and recommendations
 - **Interactive Visualization**: Scatter plot showing confidence vs estimated demand
@@ -299,5 +299,6 @@ The Advanced Analytics page has been successfully implemented with all requested
 - ✅ **FIXED**: All NameError issues resolved with direct SQL implementation
 - ✅ **RENAMED**: "AI Analytics" changed to "Demand Analytics" for clarity
 - ✅ **UPGRADED**: Advanced Statistical System for hidden demand detection with confidence scoring
+- ✅ **OPTIMIZED**: Default parameters tuned for retail focus (30-day lookback, 0.7 confidence threshold)
 
-The implementation provides a powerful analytics suite that enhances the existing Streamlit app while maintaining all existing functionality and following established coding patterns. Users can now access advanced business intelligence through a dedicated, well-organized page in the sidebar navigation with fully functional analytics features, including a statistically robust hidden demand detection system.
+The implementation provides a powerful analytics suite that enhances the existing Streamlit app while maintaining all existing functionality and following established coding patterns. Users can now access advanced business intelligence through a dedicated, well-organized page in the sidebar navigation with fully functional analytics features, including a statistically robust hidden demand detection system optimized for retail data analysis.

@@ -3885,9 +3885,9 @@ def render_advanced_analytics():
             # Configuration controls
             col1_1, col1_2, col1_3 = st.columns(3)
             with col1_1:
-                lookback_days = st.selectbox("Analysis Period", [90, 120, 180, 365], index=2, key="lookback_days")
+                lookback_days = st.selectbox("Analysis Period", [7, 14, 30, 60, 90], index=2, key="lookback_days")
             with col1_2:
-                confidence_threshold = st.slider("Confidence Threshold", 0.3, 0.9, 0.6, 0.1, key="confidence_threshold")
+                confidence_threshold = st.slider("Confidence Threshold", 0.3, 0.9, 0.7, 0.1, key="confidence_threshold")
             with col1_3:
                 if st.button("🔍 Analyze Hidden Demand", type="primary", key="analyze_hidden_demand"):
                     st.session_state.trigger_hidden_demand_analysis = True
