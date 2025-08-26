@@ -3080,11 +3080,30 @@ def render_responsive_dashboard():
             metrics = get_dashboard_metrics(time_filter, store_filter_ids, custom_start, custom_end)
             
             if not metrics or all(v == 0 for v in [metrics.get('current_sales', 0), metrics.get('current_transactions', 0)]):
-                st.warning("No data found for selected filters")
+                st.warning("⚠️ No data found for selected filters. Try changing the time period or store selection.")
+                
+                # Show data availability info
+                st.info("💡 **Data Availability Tips:**")
+                st.markdown("""
+                - **Time Period**: Try '7D' or '1M' for more data
+                - **Stores**: Select 'All Stores' to see all available data
+                - **Database**: Check if your database has transaction data for the selected period
+                """)
+                
+                # Show sample data structure for debugging
+                st.markdown("### 🔍 Debug Information")
+                st.json({
+                    "time_filter": time_filter,
+                    "selected_stores": selected_stores,
+                    "store_filter_ids": store_filter_ids,
+                    "custom_start": custom_start,
+                    "custom_end": custom_end
+                })
                 return
                 
         except Exception as e:
-            st.error(f"Error loading metrics: {e}")
+            st.error(f"❌ Error loading metrics: {e}")
+            st.info("💡 Check your database connection and ensure the database is running.")
             return
         
         try:
@@ -3095,8 +3114,20 @@ def render_responsive_dashboard():
             cat_change_df = get_categories_with_change(time_filter, store_filter_ids)
             daily_trend_df = get_daily_trend(days={"1D":1, "7D":7, "1M":30, "6M":180, "1Y":365}.get(time_filter, 7), store_ids=store_filter_ids)
             
+            # Check if we got any data
+            data_summary = {
+                "sales_cat_df": len(sales_cat_df) if not sales_cat_df.empty else 0,
+                "inv_cat_df": len(inv_cat_df) if not inv_cat_df.empty else 0,
+                "top_change_df": len(top_change_df) if not top_change_df.empty else 0,
+                "cat_change_df": len(cat_change_df) if not cat_change_df.empty else 0,
+                "daily_trend_df": len(daily_trend_df) if not daily_trend_df.empty else 0
+            }
+            
+            st.success(f"✅ Data loaded successfully: {data_summary}")
+            
         except Exception as e:
             st.error(f"❌ Error loading dashboard data: {e}")
+            st.info("💡 This might be due to database connection issues or missing data.")
             # Provide fallback empty data
             sales_cat_df = pd.DataFrame()
             inv_cat_df = pd.DataFrame()

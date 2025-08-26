@@ -83,53 +83,75 @@ class MobileDashboard:
             # Mobile KPI grid with custom CSS
             st.markdown('<div class="kpi-grid">', unsafe_allow_html=True)
             
-            # Sales KPI
-            sales_change = MobileKPICards._calculate_percentage_change(metrics.get('current_sales', 0), metrics.get('prev_sales', 0))
-            st.markdown(f"""
-            <div class="kpi-card">
-                <h3>Sales ({time_filter})</h3>
-                <div class="value">₱{metrics.get('current_sales', 0):,.0f}</div>
-                <div class="change {'positive' if sales_change and sales_change >= 0 else 'negative'}">
-                    {f'{sales_change:+.1f}%' if sales_change is not None else 'N/A'}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            # Check if we have real data
+            has_real_data = metrics.get('current_sales', 0) > 0 or metrics.get('current_transactions', 0) > 0
             
-            # Profit KPI
-            profit_change = MobileKPICards._calculate_percentage_change(metrics.get('current_profit', 0), metrics.get('prev_profit', 0))
-            st.markdown(f"""
-            <div class="kpi-card">
-                <h3>Profit ({time_filter})</h3>
-                <div class="value">₱{metrics.get('current_profit', 0):,.0f}</div>
-                <div class="change {'positive' if profit_change and profit_change >= 0 else 'negative'}">
-                    {f'{profit_change:+.1f}%' if profit_change is not None else 'N/A'}
+            if has_real_data:
+                # Sales KPI
+                sales_change = MobileKPICards._calculate_percentage_change(metrics.get('current_sales', 0), metrics.get('prev_sales', 0))
+                st.markdown(f"""
+                <div class="kpi-card">
+                    <h3>Sales ({time_filter})</h3>
+                    <div class="value">₱{metrics.get('current_sales', 0):,.0f}</div>
+                    <div class="change {'positive' if sales_change and sales_change >= 0 else 'negative'}">
+                        {f'{sales_change:+.1f}%' if sales_change is not None else 'N/A'}
+                    </div>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Transactions KPI
-            trans_change = MobileKPICards._calculate_percentage_change(metrics.get('current_transactions', 0), metrics.get('prev_transactions', 0))
-            st.markdown(f"""
-            <div class="kpi-card">
-                <h3>Transactions</h3>
-                <div class="value">{metrics.get('current_transactions', 0):,}</div>
-                <div class="change {'positive' if trans_change and trans_change >= 0 else 'negative'}">
-                    {f'{trans_change:+.1f}%' if trans_change is not None else 'N/A'}
+                """, unsafe_allow_html=True)
+                
+                # Profit KPI
+                profit_change = MobileKPICards._calculate_percentage_change(metrics.get('current_profit', 0), metrics.get('prev_profit', 0))
+                st.markdown(f"""
+                <div class="kpi-card">
+                    <h3>Profit ({time_filter})</h3>
+                    <div class="value">₱{metrics.get('current_profit', 0):,.0f}</div>
+                    <div class="change {'positive' if profit_change and profit_change >= 0 else 'negative'}">
+                        {f'{profit_change:+.1f}%' if profit_change is not None else 'N/A'}
+                    </div>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Products Sold KPI
-            products_change = MobileKPICards._calculate_percentage_change(metrics.get('current_products_sold', 0), metrics.get('prev_products_sold', 0))
-            st.markdown(f"""
-            <div class="kpi-card">
-                <h3>Products Sold</h3>
-                <div class="value">{metrics.get('current_products_sold', 0):,}</div>
-                <div class="change {'positive' if products_change and products_change >= 0 else 'negative'}">
-                    {f'{products_change:+.1f}%' if products_change is not None else 'N/A'}
+                """, unsafe_allow_html=True)
+                
+                # Transactions KPI
+                trans_change = MobileKPICards._calculate_percentage_change(metrics.get('current_transactions', 0), metrics.get('prev_transactions', 0))
+                st.markdown(f"""
+                <div class="kpi-card">
+                    <h3>Transactions</h3>
+                    <div class="value">{metrics.get('current_transactions', 0):,}</div>
+                    <div class="change {'positive' if trans_change and trans_change >= 0 else 'negative'}">
+                        {f'{trans_change:+.1f}%' if trans_change is not None else 'N/A'}
+                    </div>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+                
+                # Products Sold KPI
+                products_change = MobileKPICards._calculate_percentage_change(metrics.get('current_products_sold', 0), metrics.get('prev_products_sold', 0))
+                st.markdown(f"""
+                <div class="kpi-card">
+                    <h3>Products Sold</h3>
+                    <div class="value">{metrics.get('current_products_sold', 0):,}</div>
+                    <div class="change {'positive' if products_change and products_change >= 0 else 'negative'}">
+                        {f'{products_change:+.1f}%' if products_change is not None else 'N/A'}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                # Show sample data when no real data is available
+                sample_kpis = [
+                    {"title": "Sales (7D)", "value": "₱2,450,000", "change": "+12.5%"},
+                    {"title": "Profit (7D)", "value": "₱490,000", "change": "+8.7%"},
+                    {"title": "Transactions", "value": "1,250", "change": "+15.2%"},
+                    {"title": "Products Sold", "value": "3,750", "change": "+22.1%"}
+                ]
+                
+                for kpi in sample_kpis:
+                    change_class = 'positive' if '+' in kpi['change'] else 'negative'
+                    st.markdown(f"""
+                    <div class="kpi-card">
+                        <h3>{kpi['title']} (Sample)</h3>
+                        <div class="value">{kpi['value']}</div>
+                        <div class="change {change_class}">{kpi['change']}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
             
             st.markdown('</div>', unsafe_allow_html=True)
         else:
@@ -240,14 +262,37 @@ class MobileDashboard:
                 
                 st.markdown('</div>', unsafe_allow_html=True)
             else:
-                st.markdown("""
-                <div class="mobile-product-list">
-                    <h3>🏆 Top 10 Products (with % change)</h3>
-                    <div style="padding: 20px; text-align: center; color: #ccc;">
-                        No product data available for selected period/stores.
+                # Show sample data when no real data is available
+                sample_products = [
+                    {"name": "iPhone 15 Pro", "revenue": 1250000, "change": 12.5},
+                    {"name": "Samsung Galaxy S24", "revenue": 980000, "change": -3.2},
+                    {"name": "MacBook Pro M3", "revenue": 850000, "change": 8.7},
+                    {"name": "iPad Air", "revenue": 720000, "change": 15.3},
+                    {"name": "AirPods Pro", "revenue": 650000, "change": 22.1}
+                ]
+                
+                st.markdown('<div class="mobile-product-list">', unsafe_allow_html=True)
+                st.markdown('<h3>🏆 Top 10 Products (Sample Data)</h3>', unsafe_allow_html=True)
+                st.markdown('<p style="color: #888; font-size: 0.9rem; margin-bottom: 16px;">Showing sample data - no real data available for selected period/stores.</p>', unsafe_allow_html=True)
+                
+                for index, product in enumerate(sample_products):
+                    change_class = 'positive' if product['change'] >= 0 else 'negative'
+                    change_symbol = '+' if product['change'] >= 0 else ''
+                    
+                    st.markdown(f"""
+                    <div class="product-card-mobile">
+                        <div class="product-header">
+                            <span class="rank">#{index + 1}</span>
+                            <span class="product-name">{product['name']}</span>
+                        </div>
+                        <div class="product-stats">
+                            <span class="sales">₱{product['revenue']:,.0f}</span>
+                            <span class="change {change_class}">{change_symbol}{product['change']:.1f}%</span>
+                        </div>
                     </div>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
+                
+                st.markdown('</div>', unsafe_allow_html=True)
             
             # Mobile category list
             if not cat_change_df.empty:
@@ -274,14 +319,34 @@ class MobileDashboard:
                 
                 st.markdown('</div>', unsafe_allow_html=True)
             else:
-                st.markdown("""
-                <div class="mobile-category-list">
-                    <h3>🗂️ Categories Ranked (with % change)</h3>
-                    <div style="padding: 20px; text-align: center; color: #ccc;">
-                        No category data available for selected period/stores.
+                # Show sample data when no real data is available
+                sample_categories = [
+                    {"name": "Smartphones", "revenue": 2800000, "change": 15.2},
+                    {"name": "Laptops", "revenue": 2100000, "change": 8.7},
+                    {"name": "Accessories", "revenue": 1800000, "change": 22.5},
+                    {"name": "Tablets", "revenue": 1200000, "change": -5.3},
+                    {"name": "Gaming", "revenue": 950000, "change": 12.8}
+                ]
+                
+                st.markdown('<div class="mobile-category-list">', unsafe_allow_html=True)
+                st.markdown('<h3>🗂️ Categories Ranked (Sample Data)</h3>', unsafe_allow_html=True)
+                st.markdown('<p style="color: #888; font-size: 0.9rem; margin-bottom: 16px;">Showing sample data - no real data available for selected period/stores.</p>', unsafe_allow_html=True)
+                
+                for index, category in enumerate(sample_categories):
+                    change_class = 'positive' if category['change'] >= 0 else 'negative'
+                    change_symbol = '+' if category['change'] >= 0 else ''
+                    
+                    st.markdown(f"""
+                    <div class="category-card-mobile">
+                        <div class="category-name">{category['name']}</div>
+                        <div class="category-stats">
+                            <span class="sales">₱{category['revenue']:,.0f}</span>
+                            <span class="change {change_class}">{change_symbol}{category['change']:.1f}%</span>
+                        </div>
                     </div>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
+                
+                st.markdown('</div>', unsafe_allow_html=True)
         else:
             # Desktop layout
             st.markdown("## 🏆 Top Performers")
