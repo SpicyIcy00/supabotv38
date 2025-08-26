@@ -36,8 +36,8 @@ class DatabaseManager:
                     "password": st.secrets.get("SUPABASE_PASSWORD", st.secrets.get("password")),
                     "port": st.secrets.get("SUPABASE_PORT", st.secrets.get("port", "5432")),
                 }
-            min_conn = int(st.secrets.get("DB_MIN_POOL", 1))
-            max_conn = int(st.secrets.get("DB_MAX_POOL", 8))
+            min_conn = int(st.secrets.get("DB_MIN_POOL", 5))  # Increased from 1
+            max_conn = int(st.secrets.get("DB_MAX_POOL", 20))  # Increased from 8
             self._pool = SimpleConnectionPool(
                 minconn=min_conn,
                 maxconn=max_conn,
@@ -64,31 +64,82 @@ class DatabaseManager:
             return None
 
     def create_connection(self) -> Optional[psycopg2.extensions.connection]:
-        """Get a connection from the pool."""
+        """Get a connection from the pool with better error handling."""
         pool = self._init_pool()
         if pool is None:
             return None
         try:
-            return pool.getconn()
+            conn = pool.getconn()
+            # Set connection to autocommit mode to avoid transaction issues
+            conn.autocommit = True
+            return conn
         except Exception as e:
             st.error(f"Failed to get DB connection from pool: {e}")
             return None
 
     def release_connection(self, conn: Optional[psycopg2.extensions.connection]):
-        """Release a connection back to the pool."""
+        """Release a connection back to the pool with better error handling."""
+        if not conn:
+            return
+        
         try:
-            if conn and self._pool:
+            # Rollback any pending transactions
+            if not conn.autocommit:
+                conn.rollback()
+            
+            # Release back to pool
+            if self._pool:
                 self._pool.putconn(conn)
-            elif conn:
+            else:
                 conn.close()
-        except Exception:
-            # Best-effort release
+        except Exception as e:
+            # Log the error but don't fail the application
+            print(f"Error releasing connection: {e}")
             try:
-                if conn:
-                    conn.close()
+                conn.close()
             except Exception:
                 pass
     
+    def get_pool_status(self) -> Dict[str, Any]:
+        """Get current connection pool status."""
+        if not self._pool:
+            return {"status": "not_initialized"}
+        
+        try:
+            return {
+                "min_connections": self._pool.minconn,
+                "max_connections": self._pool.maxconn,
+                "current_connections": len(self._pool._used),
+                "available_connections": len(self._pool._pool),
+                "status": "healthy" if len(self._pool._used) < self._pool.maxconn else "exhausted"
+            }
+        except Exception as e:
+            return {"status": f"error: {e}"}
+
+    def reset_pool(self):
+        """Reset the connection pool (use with caution)."""
+        if self._pool:
+            try:
+                # Close all connections
+                for conn in self._pool._used:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                self._pool._used.clear()
+                
+                # Close pool
+                self._pool.closeall()
+                self._pool = None
+                
+                # Reinitialize
+                self._init_pool()
+                return True
+            except Exception as e:
+                st.error(f"Failed to reset pool: {e}")
+                return False
+        return True
+
     @st.cache_data(ttl=3600)
     def get_database_schema(_self) -> Optional[Dict[str, Dict]]:
         """Fetch the complete database schema including sample data."""
@@ -166,16 +217,20 @@ class DatabaseManager:
             self.release_connection(conn)
     
     def execute_query_for_dashboard(self, sql: str, params: Optional[List] = None) -> Optional[pd.DataFrame]:
-        """Execute query for dashboard with Polars. Returns pandas for UI compatibility."""
-        conn = self.create_connection()
-        if not conn:
-            return None
+        """Execute query for dashboard with improved connection handling."""
+        conn = None
         start = time.perf_counter()
         tracemalloc.start()
+        
         try:
+            conn = self.create_connection()
+            if not conn:
+                return pd.DataFrame()
+            
             cur = conn.cursor()
             cur.execute("SET statement_timeout = '30s'")
-            # Polars does not support DB-API params directly in read_database reliably; use cursor when params
+            
+            # Execute query
             if params:
                 cur.execute(sql, params)
                 rows = cur.fetchall()
@@ -183,19 +238,24 @@ class DatabaseManager:
                 pl_df = pl.DataFrame(rows, schema=columns)
             else:
                 pl_df = pl.read_database(query=sql, connection=conn)
+            
             return pl_df.to_pandas()
+            
         except Exception as e:
             # Silently handle errors for dashboard queries to avoid breaking the UI
             print(f"Dashboard query error: {e}")
             return pd.DataFrame()
         finally:
+            # Always release the connection
+            self.release_connection(conn)
+            
+            # Performance tracking
             current, peak = tracemalloc.get_traced_memory()
             duration = (time.perf_counter() - start) * 1000
             tracemalloc.stop()
             st.session_state.setdefault("perf", {})
             st.session_state["perf"]["dashboard_query_ms"] = duration
             st.session_state["perf"]["dashboard_mem_peak_kb"] = int(peak / 1024)
-            self.release_connection(conn)
     
     def get_column_config(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Dynamic formatting for dataframes."""

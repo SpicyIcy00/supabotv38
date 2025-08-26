@@ -34,7 +34,6 @@ def main():
         st.sidebar.title("🧠 SupaBot BI")
         pages = [
             "Dashboard",
-            "AI Intelligence Hub",
             "Product Sales Report",
             "Chart View",
             "AI Assistant",
@@ -56,7 +55,6 @@ def main():
         # Page navigation with error handling
         page_map = {
             "Dashboard": render_dashboard,
-            "AI Intelligence Hub": render_ai_intelligence_hub,
             "Product Sales Report": render_product_sales_report,
             "Chart View": render_chart_view,
             "AI Assistant": render_chat,
@@ -77,34 +75,7 @@ def main():
             with st.expander("🔍 Error Details"):
                 st.code(traceback.format_exc())
 
-        # Sidebar: Performance metrics (if available)
-        perf = st.session_state.get("perf", {})
-        if perf or True:
-            with st.sidebar.expander("⏱️ Performance", expanded=False):
-                last_ms = perf.get("last_query_time_ms")
-                last_kb = perf.get("last_query_mem_kb")
-                col_a, col_b = st.columns(2)
-                if isinstance(last_ms, (int, float)):
-                    col_a.metric("Last query (ms)", f"{last_ms:.1f}")
-                if isinstance(last_kb, (int, float)):
-                    col_b.metric("Peak mem (KB)", f"{last_kb:.0f}")
 
-                db_pool = perf.get("db_pool")
-                if isinstance(db_pool, dict) and db_pool:
-                    st.caption("DB pool status")
-                    st.write(db_pool)
-
-                # Benchmarks UI
-                st.markdown("---")
-                if st.button("Run Benchmarks", use_container_width=True):
-                    try:
-                        bench_df = run_benchmarks()
-                        st.session_state["last_benchmarks"] = bench_df
-                    except Exception as e:
-                        st.warning(f"Benchmark failed: {e}")
-                bench_df = st.session_state.get("last_benchmarks")
-                if bench_df is not None:
-                    st.dataframe(bench_df, use_container_width=True)
         
         # Footer
         st.markdown(

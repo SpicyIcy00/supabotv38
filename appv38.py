@@ -22,6 +22,9 @@ from supabot.core.database import (
     execute_query_for_assistant, execute_query_for_dashboard, get_column_config
 )
 from supabot.ui.styles.css import DashboardStyles
+from supabot.ui.components.mobile_utils import MobileUtils, is_mobile, responsive_columns
+from supabot.ui.components.metrics import MetricsDisplay, FilterComponents
+from supabot.ui.components.charts import ChartFactory
 
 # Configure Streamlit
 settings.configure_streamlit()
@@ -29,6 +32,101 @@ settings.configure_streamlit()
 # Load CSS styles
 DashboardStyles.load_all_styles()
 
+# Add mobile mode toggle in sidebar for testing
+if st.sidebar.checkbox("📱 Mobile Mode (for testing)", value=False):
+    MobileUtils.set_mobile_mode(True)
+else:
+    MobileUtils.set_mobile_mode(False)
+
+# Database Pool Monitoring Functions
+def show_pool_status():
+    """Display connection pool status for debugging."""
+    db_manager = get_db_manager()
+    status = db_manager.get_pool_status()
+    
+    if st.sidebar.checkbox("Show DB Pool Status"):
+        st.sidebar.write("### Connection Pool Status")
+        st.sidebar.json(status)
+        
+        if status.get("status") == "exhausted":
+            st.sidebar.error("⚠️ Connection pool exhausted!")
+            st.sidebar.info("Consider increasing DB_MAX_POOL in secrets.toml")
+        
+        if st.sidebar.button("Reset Pool"):
+            if db_manager.reset_pool():
+                st.sidebar.success("Pool reset successfully")
+            else:
+                st.sidebar.error("Failed to reset pool")
+
+def debug_connection_issues():
+    """Debug connection pool issues."""
+    if st.sidebar.checkbox("Debug DB Connections"):
+        db_manager = get_db_manager()
+        status = db_manager.get_pool_status()
+        
+        st.sidebar.write("### Connection Pool Status")
+        st.sidebar.json(status)
+        
+        if st.sidebar.button("Reset Pool"):
+            if db_manager.reset_pool():
+                st.sidebar.success("Pool reset successfully")
+            else:
+                st.sidebar.error("Failed to reset pool")
+
+def monitor_connection_health():
+    """Comprehensive connection health monitoring."""
+    if st.sidebar.checkbox("🔍 Connection Health Monitor"):
+        db_manager = get_db_manager()
+        status = db_manager.get_pool_status()
+        
+        st.sidebar.write("### 🔧 Connection Pool Health")
+        
+        # Status indicator
+        if status.get("status") == "healthy":
+            st.sidebar.success("✅ Pool Healthy")
+        elif status.get("status") == "exhausted":
+            st.sidebar.error("❌ Pool Exhausted")
+        else:
+            st.sidebar.warning("⚠️ Pool Issues")
+        
+        # Connection details
+        col1, col2 = st.sidebar.columns(2)
+        with col1:
+            st.metric("Used", status.get("current_connections", 0))
+        with col2:
+            st.metric("Available", status.get("available_connections", 0))
+        
+        st.sidebar.write(f"**Max Connections:** {status.get('max_connections', 0)}")
+        st.sidebar.write(f"**Min Connections:** {status.get('min_connections', 0)}")
+        
+        # Usage percentage
+        max_conn = status.get("max_connections", 1)
+        used_conn = status.get("current_connections", 0)
+        usage_pct = (used_conn / max_conn) * 100 if max_conn > 0 else 0
+        
+        st.sidebar.progress(usage_pct / 100, text=f"Usage: {usage_pct:.1f}%")
+        
+        # Recommendations
+        if usage_pct > 80:
+            st.sidebar.warning("⚠️ High connection usage. Consider increasing DB_MAX_POOL.")
+        elif usage_pct > 60:
+            st.sidebar.info("ℹ️ Moderate connection usage.")
+        else:
+            st.sidebar.success("✅ Low connection usage.")
+        
+        # Action buttons
+        col1, col2 = st.sidebar.columns(2)
+        with col1:
+            if st.button("🔄 Reset Pool", help="Reset the connection pool"):
+                if db_manager.reset_pool():
+                    st.success("Pool reset!")
+                    st.rerun()
+                else:
+                    st.error("Reset failed!")
+        
+        with col2:
+            if st.button("📊 Refresh", help="Refresh pool status"):
+                st.rerun()
 
 # Enhanced Training System from v1justsupabot.py
 class EnhancedTrainingSystem:
@@ -656,7 +754,7 @@ def create_bar_chart(results_df, question, numeric_cols, text_cols):
 # Execute query for AI Assistant
 # Database query functions now imported from supabot.core.database
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def get_latest_metrics():
     sql = """
     WITH latest_date AS (
@@ -675,7 +773,7 @@ def get_latest_metrics():
     """
     return execute_query_for_dashboard(sql)
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def get_previous_metrics():
     sql = """
     WITH latest_date AS (
@@ -694,7 +792,7 @@ def get_previous_metrics():
     """
     return execute_query_for_dashboard(sql)
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def get_hourly_sales():
     sql = """
     WITH latest_date AS (
@@ -752,11 +850,86 @@ def get_store_performance(time_filter: str = "7D", store_ids: Optional[List[int]
     return execute_query_for_dashboard(sql, params=params)
 
 @st.cache_data(ttl=300)
+def get_store_performance_with_comparison(time_filter: str = "7D", store_ids: Optional[List[int]] = None):
+    """Get store performance with period-over-period comparison for percentage changes.
+    Returns current period sales and previous period sales for each store.
+    """
+    # Get intelligent date ranges for current period
+    date_range = get_intelligent_date_range(time_filter)
+    current_start = date_range['start_date']
+    current_end = date_range['end_date']
+    
+    # Get previous period dates for comparison
+    prev_dates = get_previous_period_dates(current_start, current_end, time_filter)
+    prev_start = prev_dates['start_date']
+    prev_end = prev_dates['end_date']
+    
+    # Build store clause and params
+    store_clause = ""
+    params: List[Any] = []
+    
+    # Parameters in SQL order: current_start, current_end, store_ids, prev_start, prev_end, store_ids
+    params.extend([str(current_start), str(current_end)])
+    
+    if store_ids:
+        store_clause = "AND t.store_id = ANY(%s)"
+        params.append(store_ids)  # For current period
+    
+    params.extend([str(prev_start), str(prev_end)])
+    
+    if store_ids:
+        params.append(store_ids)  # For previous period
+
+    sql = f"""
+    WITH current_period AS (
+        SELECT 
+            s.name AS store_name,
+            s.id AS store_id,
+            COALESCE(SUM(t.total), 0) AS current_sales
+        FROM transactions t
+        JOIN stores s ON t.store_id = s.id
+        WHERE LOWER(t.transaction_type) = 'sale'
+          AND COALESCE(t.is_cancelled, false) = false
+          AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') >= %s
+          AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') <= %s
+          {store_clause}
+        GROUP BY s.name, s.id
+    ),
+    previous_period AS (
+        SELECT 
+            s.id AS store_id,
+            COALESCE(SUM(t.total), 0) AS previous_sales
+        FROM transactions t
+        JOIN stores s ON t.store_id = s.id
+        WHERE LOWER(t.transaction_type) = 'sale'
+          AND COALESCE(t.is_cancelled, false) = false
+          AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') >= %s
+          AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') <= %s
+          {store_clause}
+        GROUP BY s.id
+    )
+    SELECT 
+        cp.store_name,
+        cp.current_sales AS total_sales,
+        COALESCE(pp.previous_sales, 0) AS previous_sales,
+        CASE 
+            WHEN COALESCE(pp.previous_sales, 0) = 0 THEN NULL
+            ELSE ((cp.current_sales - pp.previous_sales) / pp.previous_sales) * 100.0
+        END AS pct_change
+    FROM current_period cp
+    LEFT JOIN previous_period pp ON cp.store_id = pp.store_id
+    WHERE cp.current_sales > 0
+    ORDER BY cp.current_sales DESC
+    """
+    
+    return execute_query_for_dashboard(sql, params=params)
+
+@st.cache_data(ttl=300)
 def get_daily_trend(days=30, store_ids: Optional[List[int]] = None):
     """Fetches daily sales trend, with optional store filter.
     Updated to use intelligent date ranges for better period selection.
     """
-    # For backward compatibility, we'll keep the days parameter but use intelligent ranges
+    # For backward compatibility, we'll keep the days parameter but use intelligent date ranges
     # when called from dashboard functions
     # TODO: Update this function to use intelligent date ranges when called from dashboard
     
@@ -2835,27 +3008,67 @@ def render_dashboard():
 
     with dashboard_tab:
         # --- 1. Time and Store Selectors ---
-        filter_col1, filter_col2, filter_col3 = st.columns([2, 2, 2])
-        with filter_col1:
-            time_options = ["1D", "7D", "1M", "6M", "1Y", "Custom"]
-            time_index = time_options.index(st.session_state.dashboard_time_filter) if st.session_state.dashboard_time_filter in time_options else 1
-            st.session_state.dashboard_time_filter = st.radio(
-                "Select Time Period:", options=time_options, index=time_index,
-                horizontal=True, key="time_filter_selector"
-            )
-        
-        with filter_col2:
-            store_df = get_store_list()
-            store_list = store_df['name'].tolist()
-            all_stores_option = "All Stores"
+        # Use responsive columns for mobile optimization
+        if is_mobile():
+            # Mobile layout: single column for filters
+            with st.container():
+                time_options = ["1D", "7D", "1M", "6M", "1Y", "Custom"]
+                time_index = time_options.index(st.session_state.dashboard_time_filter) if st.session_state.dashboard_time_filter in time_options else 1
+                st.session_state.dashboard_time_filter = st.radio(
+                    "Select Time Period:", options=time_options, index=time_index,
+                    horizontal=True, key="time_filter_selector"
+                )
+                
+                # Store filter for mobile
+                store_df = get_store_list()
+                store_list = store_df['name'].tolist()
+                all_stores_option = "All Stores"
+                
+                st.session_state.dashboard_store_filter = st.selectbox(
+                    "Select Store:",
+                    options=[all_stores_option] + store_list,
+                    index=0 if not st.session_state.dashboard_store_filter else 
+                          ([all_stores_option] + store_list).index(st.session_state.dashboard_store_filter[0]) if st.session_state.dashboard_store_filter else 0,
+                    key="store_filter_mobile"
+                )
+                # Convert to list for compatibility
+                st.session_state.dashboard_store_filter = [st.session_state.dashboard_store_filter]
+                
+                # Custom date range for mobile (only show if Custom is selected)
+                if st.session_state.dashboard_time_filter == "Custom":
+                    st.write("**Custom Date Range:**")
+                    
+                    custom_start = st.date_input(
+                        "From Date", 
+                        value=st.session_state.custom_start_date,
+                        key="custom_date_start_widget_mobile"
+                    )
+                    
+                    custom_end = st.date_input(
+                        "To Date", 
+                        value=st.session_state.custom_end_date,
+                        key="custom_date_end_widget_mobile"
+                    )
+                    
+                    # Update session state
+                    st.session_state.custom_start_date = custom_start
+                    st.session_state.custom_end_date = custom_end
+                    
+                    # Validate dates
+                    if custom_start > custom_end:
+                        st.error("Start date cannot be after end date!")
+                        return
+        else:
+            # Desktop layout: 3-column layout
+            filter_col1, filter_col2, filter_col3 = st.columns([2, 2, 2])
+            with filter_col1:
+                time_options = ["1D", "7D", "1M", "6M", "1Y", "Custom"]
+                time_index = time_options.index(st.session_state.dashboard_time_filter) if st.session_state.dashboard_time_filter in time_options else 1
+                st.session_state.dashboard_time_filter = st.radio(
+                    "Select Time Period:", options=time_options, index=time_index,
+                    horizontal=True, key="time_filter_selector"
+                )
             
-            st.session_state.dashboard_store_filter = st.multiselect(
-                "Select Store(s):",
-                options=[all_stores_option] + store_list,
-                default=st.session_state.dashboard_store_filter
-            )
-
-        with filter_col3:
             # Custom date range (only show if Custom is selected)
             if st.session_state.dashboard_time_filter == "Custom":
                 st.write("**Custom Date Range:**")
@@ -2880,6 +3093,21 @@ def render_dashboard():
                 if custom_start > custom_end:
                     st.error("Start date cannot be after end date!")
                     return
+        
+        with filter_col2:
+            # Middle column - can be used for additional filters or left empty
+            pass
+
+        with filter_col3:
+            store_df = get_store_list()
+            store_list = store_df['name'].tolist()
+            all_stores_option = "All Stores"
+            
+            st.session_state.dashboard_store_filter = st.multiselect(
+                "Select Store(s):",
+                options=[all_stores_option] + store_list,
+                default=st.session_state.dashboard_store_filter
+            )
 
         # --- Process Filters ---
         time_filter = st.session_state.dashboard_time_filter
@@ -2970,11 +3198,9 @@ def render_dashboard():
                     st.warning("No data found for selected filters")
                     return
                 else:
-                    # Show success message for data loaded
+                    # Data loaded successfully (no message displayed)
                     total_sales = metrics.get('current_sales', 0)
                     total_transactions = metrics.get('current_transactions', 0)
-                    if total_sales > 0 and total_transactions > 0:
-                        st.success(f"✅ Dashboard loaded successfully! Found {total_transactions:,} transactions with ₱{total_sales:,.0f} in sales for the selected period.")
                     
             except Exception as e:
                 st.error(f"Error loading metrics: {e}")
@@ -3032,31 +3258,59 @@ def render_dashboard():
             arrow = "↗" if change > 0 else "↘"
             return f"{change:+.1f}% {arrow}"
 
-        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        # Use responsive KPI layout
+        if is_mobile():
+            # Mobile layout: 2x2 grid
+            kpi_col1, kpi_col2 = st.columns(2)
+            
+            with kpi_col1:
+                sales = metrics.get('current_sales', 0)
+                prev_sales = metrics.get('prev_sales', 0)
+                delta = format_percentage_change(sales, prev_sales)
+                st.metric("Total Sales", f"₱{sales:,.0f}", delta)
+                
+                transactions = metrics.get('current_transactions', 0)
+                prev_transactions = metrics.get('prev_transactions', 0)
+                delta = format_percentage_change(transactions, prev_transactions)
+                st.metric("Transactions", f"{transactions:,}", delta)
+            
+            with kpi_col2:
+                profit = metrics.get('current_profit', 0)
+                prev_profit = metrics.get('prev_profit', 0)
+                delta = format_percentage_change(profit, prev_profit)
+                st.metric("Total Profit", f"₱{profit:,.0f}", delta)
+                
+                avg_value = metrics.get('avg_transaction_value', 0)
+                prev_avg_value = metrics.get('prev_avg_transaction_value', 0)
+                delta = format_percentage_change(avg_value, prev_avg_value)
+                st.metric("Avg Transaction Value", f"₱{avg_value:,.0f}", delta)
+        else:
+            # Desktop layout: 4 columns
+            kpi1, kpi2, kpi3, kpi4 = st.columns(4)
 
-        with kpi1:
-            sales = metrics.get('current_sales', 0)
-            prev_sales = metrics.get('prev_sales', 0)
-            delta = format_percentage_change(sales, prev_sales)
-            st.metric("Total Sales", f"₱{sales:,.0f}", delta)
+            with kpi1:
+                sales = metrics.get('current_sales', 0)
+                prev_sales = metrics.get('prev_sales', 0)
+                delta = format_percentage_change(sales, prev_sales)
+                st.metric("Total Sales", f"₱{sales:,.0f}", delta)
 
-        with kpi2:
-            profit = metrics.get('current_profit', 0)
-            prev_profit = metrics.get('prev_profit', 0)
-            delta = format_percentage_change(profit, prev_profit)
-            st.metric("Total Profit", f"₱{profit:,.0f}", delta)
+            with kpi2:
+                profit = metrics.get('current_profit', 0)
+                prev_profit = metrics.get('prev_profit', 0)
+                delta = format_percentage_change(profit, prev_profit)
+                st.metric("Total Profit", f"₱{profit:,.0f}", delta)
 
-        with kpi3:
-            transactions = metrics.get('current_transactions', 0)
-            prev_transactions = metrics.get('prev_transactions', 0)
-            delta = format_percentage_change(transactions, prev_transactions)
-            st.metric("Transactions", f"{transactions:,}", delta)
+            with kpi3:
+                transactions = metrics.get('current_transactions', 0)
+                prev_transactions = metrics.get('prev_transactions', 0)
+                delta = format_percentage_change(transactions, prev_transactions)
+                st.metric("Transactions", f"{transactions:,}", delta)
 
-        with kpi4:
-            avg_value = metrics.get('avg_transaction_value', 0)
-            prev_avg_value = metrics.get('prev_avg_transaction_value', 0)
-            delta = format_percentage_change(avg_value, prev_avg_value)
-            st.metric("Avg Transaction Value", f"₱{avg_value:,.0f}", delta)
+            with kpi4:
+                avg_value = metrics.get('avg_transaction_value', 0)
+                prev_avg_value = metrics.get('prev_avg_transaction_value', 0)
+                delta = format_percentage_change(avg_value, prev_avg_value)
+                st.metric("Avg Transaction Value", f"₱{avg_value:,.0f}", delta)
 
         st.markdown("<hr>", unsafe_allow_html=True)
         
@@ -3157,11 +3411,130 @@ Previous Period Query:
         st.markdown("<hr>", unsafe_allow_html=True)
         
         # --- 3. Main Grid Layout (AI removed from this tab) ---
-        left_col, center_col = st.columns([1, 1], gap="large")
+        # Use responsive layout for charts
+        if is_mobile():
+            # Mobile layout: single column for charts
+            with st.container():
+                # Mobile-optimized chart layout
+                with st.container(border=True):
+                    st.markdown("##### 💰 Sales by Category")
+                    if not sales_cat_df.empty:
+                        df_plot = sales_cat_df.head(5).copy()  # Limit to 5 for mobile
+                        df_plot['category_canonical'] = df_plot['category'].astype(str).apply(canonicalize_category_label)
+                        df_plot = df_plot.groupby('category_canonical', as_index=False)['total_revenue'].sum()
+                        fig = px.pie(
+                            df_plot,
+                            values='total_revenue',
+                            names='category_canonical',
+                            color='category_canonical',
+                            hole=0.4,
+                            color_discrete_map=get_fixed_category_color_map()
+                        )
+                        fig.update_traces(textposition='inside', textinfo='percent+label')
+                        fig.update_layout(
+                            showlegend=False, 
+                            height=250,  # Smaller height for mobile
+                            margin=dict(t=0, b=0, l=0, r=0), 
+                            template="plotly_dark", 
+                            paper_bgcolor='rgba(0,0,0,0)', 
+                            plot_bgcolor='rgba(0,0,0,0)'
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No sales data available for selected period/stores.")
+                
+                with st.container(border=True):
+                    st.markdown("##### 📦 Inventory by Category")
+                    if not inv_cat_df.empty:
+                        df_plot = inv_cat_df.copy()
+                        df_plot['category_canonical'] = df_plot['category'].astype(str).apply(canonicalize_category_label)
+                        df_plot = df_plot.groupby('category_canonical', as_index=False)['total_inventory_value'].sum()
+                        fig = px.pie(
+                            df_plot,
+                            values='total_inventory_value',
+                            names='category_canonical',
+                            color='category_canonical',
+                            hole=0.4,
+                            color_discrete_map=get_fixed_category_color_map()
+                        )
+                        fig.update_traces(textposition='inside', textinfo='percent+label')
+                        fig.update_layout(
+                            showlegend=False, 
+                            height=250,  # Smaller height for mobile
+                            margin=dict(t=0, b=0, l=0, r=0), 
+                            template="plotly_dark", 
+                            paper_bgcolor='rgba(0,0,0,0)', 
+                            plot_bgcolor='rgba(0,0,0,0)'
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No inventory data available for selected stores.")
+                
+                # Mobile-optimized tables
+                with st.container(border=True):
+                    st.markdown("##### 🏆 Top 5 Products (with % change)")
+                    if not top_change_df.empty:
+                        df_disp = top_change_df.head(5).copy()  # Limit to 5 for mobile
+                        df_disp.rename(columns={'product_name': 'Product', 'total_revenue': 'Sales'}, inplace=True)
+                        def _pct_cell(x):
+                            if x is None or (isinstance(x, float) and pd.isna(x)):
+                                return "New"
+                            arrow = '▲' if x >= 0 else '▼'
+                            return f"{arrow} {abs(x):.1f}%"
+                        df_disp['Δ %'] = df_disp['pct_change'].apply(_pct_cell)
+                        show_df = df_disp[['Product', 'Sales', 'Δ %']].copy()
+                        # Mobile-optimized display
+                        for _, row in show_df.iterrows():
+                            col1, col2, col3 = st.columns([3, 1, 1])
+                            with col1:
+                                st.write(f"**{row['Product']}**")
+                            with col2:
+                                st.write(f"₱{row['Sales']:,.0f}")
+                            with col3:
+                                if row['Δ %'].startswith('▲'):
+                                    st.write(f"🟢 {row['Δ %']}")
+                                elif row['Δ %'].startswith('▼'):
+                                    st.write(f"🔴 {row['Δ %']}")
+                                else:
+                                    st.write(f"⚪ {row['Δ %']}")
+                    else:
+                        st.info("No product data available for selected period/stores.")
+                
+                with st.container(border=True):
+                    st.markdown("##### 🗂️ Categories Ranked (with % change)")
+                    if not cat_change_df.empty:
+                        dfc = cat_change_df.head(5).copy()  # Limit to 5 for mobile
+                        dfc.rename(columns={'category': 'Category', 'total_revenue': 'Sales'}, inplace=True)
+                        def _pct_cell2(x):
+                            if x is None or (isinstance(x, float) and pd.isna(x)):
+                                return "New"
+                            arrow = '▲' if x >= 0 else '▼'
+                            return f"{arrow} {abs(x):.1f}%"
+                        dfc['Δ %'] = dfc['pct_change'].apply(_pct_cell2)
+                        show_c = dfc[['Category', 'Sales', 'Δ %']].copy()
+                        # Mobile-optimized display
+                        for _, row in show_c.iterrows():
+                            col1, col2, col3 = st.columns([3, 1, 1])
+                            with col1:
+                                st.write(f"**{row['Category']}**")
+                            with col2:
+                                st.write(f"₱{row['Sales']:,.0f}")
+                            with col3:
+                                if row['Δ %'].startswith('▲'):
+                                    st.write(f"🟢 {row['Δ %']}")
+                                elif row['Δ %'].startswith('▼'):
+                                    st.write(f"🔴 {row['Δ %']}")
+                                else:
+                                    st.write(f"⚪ {row['Δ %']}")
+                    else:
+                        st.info("No category data available for selected period/stores.")
+        else:
+            # Desktop layout: 2-column layout
+            left_col, center_col = st.columns([1, 1], gap="large")
 
-        # --- LEFT COLUMN - PRODUCT & CATEGORY ANALYTICS ---
-        with left_col:
-            pie_col1, pie_col2 = st.columns(2)
+            # --- LEFT COLUMN - PRODUCT & CATEGORY ANALYTICS ---
+            with left_col:
+                pie_col1, pie_col2 = st.columns(2)
             
             with pie_col1:
                 with st.container(border=True):
@@ -3273,7 +3646,7 @@ Previous Period Query:
         with center_col:
             with st.container(border=True):
                 st.markdown("##### 🏪 Store Performance")
-                store_performance = get_store_performance(time_filter, store_filter_ids if store_filter_ids else None)
+                store_performance = get_store_performance_with_comparison(time_filter, store_filter_ids if store_filter_ids else None)
                 if not store_performance.empty:
                     # Fixed store colors to match Chart View
                     store_color_map = {
@@ -3283,6 +3656,8 @@ Previous Period Query:
                         'North Edsa': '#3498DB',
                         'Fairview': '#9B59B6'
                     }
+                    
+                    # Create the bar chart
                     fig = px.bar(
                         store_performance.head(5),
                         x='store_name', y='total_sales',
@@ -3290,9 +3665,47 @@ Previous Period Query:
                         color='store_name',
                         color_discrete_map=store_color_map
                     )
+                    
+                    # Add percentage change annotations on top of each bar BEFORE displaying
+                    for idx, (_, store) in enumerate(store_performance.head(5).iterrows()):
+                        current_sales = store['total_sales']
+                        pct_change = store.get('pct_change')
+                        
+                        # Format percentage change with arrow
+                        if pct_change is not None:
+                            if pct_change > 0:
+                                annotation_text = f"↗ +{pct_change:.1f}%"
+                                annotation_color = "#2ECC71"  # Green for positive
+                            elif pct_change < 0:
+                                annotation_text = f"↘ {pct_change:.1f}%"
+                                annotation_color = "#E74C3C"  # Red for negative
+                            else:
+                                annotation_text = "→ 0.0%"
+                                annotation_color = "#95A5A6"  # Gray for no change
+                        else:
+                            annotation_text = "New ↗"
+                            annotation_color = "#F39C12"  # Orange for new data
+                        
+                        # Add annotation on top of each bar
+                        fig.add_annotation(
+                            x=store['store_name'],
+                            y=current_sales,
+                            text=annotation_text,
+                            showarrow=False,
+                            font=dict(color=annotation_color, size=11, family="Arial Black"),
+                            yshift=15,  # Position above the bar
+                            bgcolor="rgba(0,0,0,0)",  # Transparent background
+                            bordercolor="rgba(0,0,0,0)",  # No border
+                            borderwidth=0
+                        )
+                    
+                    # Update layout after adding annotations
                     fig.update_layout(height=300, margin=dict(t=30, b=0, l=0, r=0), template="plotly_dark", 
                                       paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
                     fig.update_yaxes(tickprefix='₱', separatethousands=True)
+                    fig.update_xaxes(title_text="")  # Remove x-axis label
+                    
+                    # Display the chart with annotations
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("No store performance data available.")
@@ -5292,7 +5705,7 @@ WITH tz AS (
   SELECT (now() AT TIME ZONE 'Asia/Manila')::date AS today_mnl
 ),
 bounds AS (
-  SELECT
+  SELECT 
     DATE_TRUNC('week', today_mnl)::date AS this_week_start,
     (DATE_TRUNC('week', today_mnl)::date - INTERVAL '28 days') AS window_start,
     DATE_TRUNC('week', today_mnl)::date AS window_end
@@ -6952,13 +7365,17 @@ def main():
         load_css()
         init_session_state()
         
+        # Show pool status in sidebar for debugging
+        show_pool_status()
+        monitor_connection_health()
+        
         with st.sidebar:
             st.markdown("### 🧭 Navigation")
             
             # Add logo or branding here if you want
             st.markdown("---")
             
-            pages = ["📊 Dashboard", "📈 Product Sales Report", "📈 Chart View", "🧠 AI Assistant", "🧠 AI Intelligence Hub", "⚙️ Settings"]
+            pages = ["📊 Dashboard", "📈 Product Sales Report", "📈 Chart View", "🧠 AI Assistant", "⚙️ Settings"]
             
             for page in pages:
                 page_name = page.split(" ", 1)[1]
@@ -6991,8 +7408,7 @@ def main():
             render_chart_view()
         elif st.session_state.current_page == "AI Assistant":
             render_chat()
-        elif st.session_state.current_page == "AI Intelligence Hub":
-            render_ai_intelligence_hub()
+
         elif st.session_state.current_page == "Settings":
             render_settings()
         

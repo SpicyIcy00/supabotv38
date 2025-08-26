@@ -34,7 +34,7 @@ class AppSettings:
         "Product Sales Report", 
         "Chart View",
         "AI Assistant",
-        "AI Intelligence Hub",
+
         "Settings"
     ]
     
