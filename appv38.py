@@ -3001,9 +3001,19 @@ def render_dashboard():
         mobile_available = False
         st.warning("Mobile components not available. Using desktop layout only.")
     
-    # Check if mobile components are available and render responsive dashboard
+    # Check if mobile components are available and we're on mobile
     if mobile_available:
-        render_responsive_dashboard()
+        # Try to detect if we're on mobile
+        try:
+            from supabot.ui.components.mobile.responsive_wrapper import ResponsiveWrapper
+            screen_size = ResponsiveWrapper.get_screen_size()
+            if screen_size == 'mobile':
+                render_responsive_dashboard()
+            else:
+                render_legacy_dashboard()
+        except:
+            # If screen detection fails, use legacy dashboard
+            render_legacy_dashboard()
     else:
         render_legacy_dashboard()
 
@@ -3011,13 +3021,20 @@ def render_responsive_dashboard():
     """Renders the responsive dashboard with mobile optimization."""
     from supabot.ui.components.mobile_dashboard import MobileDashboard
     
-    # Get dashboard data
-    dashboard_data = get_dashboard_data()
-    if not dashboard_data:
-        st.error("Failed to load dashboard data")
-        return
+    # Use existing dashboard data instead of creating new filters
+    # Get metrics
+    metrics = get_dashboard_metrics(st.session_state.dashboard_time_filter, None)
     
-    metrics, sales_df, sales_cat_df, inv_cat_df, top_change_df, cat_change_df, time_filter, selected_stores = dashboard_data
+    # Get sales trend data
+    sales_df = get_sales_trend_data(st.session_state.dashboard_time_filter, None)
+    
+    # Get category data
+    sales_cat_df = get_sales_by_category_data(st.session_state.dashboard_time_filter, None)
+    inv_cat_df = get_inventory_by_category_data(None)
+    
+    # Get top products and categories with change data
+    top_change_df = get_top_products_with_change(st.session_state.dashboard_time_filter, None)
+    cat_change_df = get_categories_with_change(st.session_state.dashboard_time_filter, None)
     
     # Render responsive dashboard
     MobileDashboard.render_responsive_dashboard(
@@ -3027,8 +3044,8 @@ def render_responsive_dashboard():
         inv_cat_df=inv_cat_df,
         top_change_df=top_change_df,
         cat_change_df=cat_change_df,
-        time_filter=time_filter,
-        selected_stores=selected_stores
+        time_filter=st.session_state.dashboard_time_filter,
+        selected_stores=st.session_state.dashboard_store_filter
     )
 
 def get_dashboard_data():
