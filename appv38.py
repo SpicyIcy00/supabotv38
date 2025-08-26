@@ -3879,72 +3879,244 @@ def render_advanced_analytics():
         col1, col2 = st.columns(2)
         
         with col1:
-            if st.button("🔍 Detect Hidden Demand", key="detect_hidden_demand"):
-                with st.spinner("Analyzing sales patterns and inventory levels..."):
+            st.subheader("🔍 Advanced Hidden Demand Detection")
+            st.info("📊 Statistical analysis of demand patterns with confidence scoring")
+            
+            # Configuration controls
+            col1_1, col1_2, col1_3 = st.columns(3)
+            with col1_1:
+                lookback_days = st.selectbox("Analysis Period", [90, 120, 180, 365], index=2, key="lookback_days")
+            with col1_2:
+                confidence_threshold = st.slider("Confidence Threshold", 0.3, 0.9, 0.6, 0.1, key="confidence_threshold")
+            with col1_3:
+                if st.button("🔍 Analyze Hidden Demand", type="primary", key="analyze_hidden_demand"):
+                    st.session_state.trigger_hidden_demand_analysis = True
+            
+            if st.session_state.get('trigger_hidden_demand_analysis', False):
+                with st.spinner("Performing advanced statistical analysis..."):
                     try:
-                        # Direct SQL implementation for hidden demand detection
+                        # Advanced hidden demand detection using time-series analysis and correlation
                         sql = """
-                        WITH product_sales AS (
-                            SELECT
-                                p.id as product_id,
-                                p.name as product_name,
-                                p.category,
-                                SUM(ti.quantity) as total_sold,
-                                COUNT(DISTINCT t.ref_id) as transaction_count,
-                                MAX(t.transaction_time) as last_sale_date
+                        WITH daily_sales AS (
+                            SELECT 
+                                p.id as product_id, p.name as product_name, p.category,
+                                t.store_id, s.name as store_name,
+                                DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') as sale_date,
+                                SUM(ti.quantity) as daily_qty
                             FROM transaction_items ti
                             JOIN transactions t ON ti.transaction_ref_id = t.ref_id
                             JOIN products p ON ti.product_id = p.id
+                            JOIN stores s ON t.store_id = s.id
                             WHERE LOWER(t.transaction_type) = 'sale' 
-                            AND COALESCE(t.is_cancelled, false) = false
-                            AND (t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '90 days'
-                            GROUP BY p.id, p.name, p.category
+                            AND (t.is_cancelled = false OR t.is_cancelled IS NULL)
+                            AND t.transaction_time >= CURRENT_DATE - INTERVAL %s
+                            GROUP BY 1, 2, 3, 4, 5, 6
                         ),
-                        inventory_status AS (
-                            SELECT
-                                i.product_id,
-                                SUM(i.quantity_on_hand) as total_stock
-                            FROM inventory i
-                            GROUP BY i.product_id
+                        
+                        sales_with_gaps AS (
+                            SELECT *,
+                                sale_date - LAG(sale_date, 1) OVER (
+                                    PARTITION BY product_id, store_id 
+                                    ORDER BY sale_date
+                                ) as gap_days,
+                                AVG(daily_qty) OVER (
+                                    PARTITION BY product_id, store_id 
+                                    ORDER BY sale_date 
+                                    ROWS BETWEEN 13 PRECEDING AND CURRENT ROW
+                                ) as rolling_avg_14d
+                            FROM daily_sales
+                        ),
+                        
+                        demand_patterns AS (
+                            SELECT 
+                                product_id, product_name, category, store_id, store_name,
+                                
+                                -- Core demand metrics
+                                AVG(daily_qty) as avg_daily_demand,
+                                STDDEV(daily_qty) as demand_volatility,
+                                COUNT(*) as sales_days,
+                                
+                                -- Time gap analysis
+                                AVG(CASE WHEN gap_days IS NOT NULL THEN gap_days ELSE 1 END) as avg_gap_days,
+                                MAX(gap_days) as max_gap_days,
+                                CURRENT_DATE - MAX(sale_date) as days_since_last_sale,
+                                
+                                -- Trend detection (simplified linear regression)
+                                REGR_SLOPE(daily_qty, EXTRACT(EPOCH FROM sale_date)) as trend_slope,
+                                CORR(daily_qty, EXTRACT(EPOCH FROM sale_date)) as trend_correlation,
+                                
+                                -- Recent vs historical comparison
+                                AVG(CASE WHEN sale_date >= CURRENT_DATE - INTERVAL '30 days' 
+                                    THEN daily_qty ELSE NULL END) as recent_30d_avg,
+                                AVG(CASE WHEN sale_date < CURRENT_DATE - INTERVAL '30 days' 
+                                    THEN daily_qty ELSE NULL END) as historical_avg
+                                
+                            FROM sales_with_gaps
+                            GROUP BY 1, 2, 3, 4, 5
+                            HAVING COUNT(*) >= 14  -- Minimum 14 sales days for analysis
+                        ),
+                        
+                        inventory_correlation AS (
+                            SELECT 
+                                dp.*,
+                                COALESCE(i.quantity_on_hand, 0) as current_stock,
+                                CASE 
+                                    WHEN i.quantity_on_hand = 0 THEN 1
+                                    WHEN i.quantity_on_hand <= dp.avg_daily_demand * 3 THEN 0.7
+                                    WHEN i.quantity_on_hand <= dp.avg_daily_demand * 7 THEN 0.3
+                                    ELSE 0
+                                END as stockout_signal,
+                                
+                                -- Demand disruption score
+                                CASE 
+                                    WHEN dp.days_since_last_sale > 14 
+                                         AND dp.historical_avg > 0.5 
+                                         AND dp.trend_slope > -0.01 
+                                    THEN 1.0
+                                    WHEN dp.max_gap_days > dp.avg_gap_days * 3 
+                                         AND dp.demand_volatility < dp.avg_daily_demand
+                                    THEN 0.8
+                                    ELSE 0.0
+                                END as disruption_score
+                                
+                            FROM demand_patterns dp
+                            LEFT JOIN inventory i ON dp.product_id = i.product_id AND dp.store_id = i.store_id
+                        ),
+                        
+                        hidden_demand_scoring AS (
+                            SELECT *,
+                                -- Multi-factor confidence score (0-1 scale)
+                                LEAST(1.0, GREATEST(0.0,
+                                    (CASE WHEN historical_avg > 1.0 THEN 0.3 ELSE historical_avg * 0.3 END) +
+                                    (stockout_signal * 0.25) +
+                                    (disruption_score * 0.25) +
+                                    (CASE WHEN trend_correlation > 0.1 THEN 0.1 ELSE 0 END) +
+                                    (CASE WHEN demand_volatility < avg_daily_demand THEN 0.1 ELSE 0 END)
+                                )) as confidence_score,
+                                
+                                -- Potential demand estimate
+                                GREATEST(0, historical_avg * 
+                                    CASE 
+                                        WHEN days_since_last_sale <= 7 THEN 1.0
+                                        WHEN days_since_last_sale <= 30 THEN 1.2
+                                        ELSE 1.5
+                                    END
+                                ) as estimated_weekly_demand
+                                
+                            FROM inventory_correlation
                         )
-                        SELECT
-                            ps.product_name,
-                            ps.category,
-                            ps.total_sold,
-                            ps.transaction_count,
-                            COALESCE(is.total_stock, 0) as current_stock,
-                            ps.last_sale_date,
+                        
+                        SELECT 
+                            product_name, store_name, category,
+                            ROUND(avg_daily_demand, 2) as avg_daily_demand,
+                            ROUND(demand_volatility, 2) as demand_volatility,
+                            days_since_last_sale,
+                            current_stock,
+                            ROUND(confidence_score * 100, 1) as confidence_percent,
+                            ROUND(estimated_weekly_demand * 7, 0) as weekly_demand_estimate,
+                            
                             CASE 
-                                WHEN COALESCE(is.total_stock, 0) = 0 AND ps.total_sold > 10 THEN 'HIGH DEMAND - OUT OF STOCK'
-                                WHEN COALESCE(is.total_stock, 0) <= 5 AND ps.total_sold > 20 THEN 'HIGH DEMAND - LOW STOCK'
-                                WHEN ps.total_sold > 50 THEN 'CONSISTENT DEMAND'
-                                ELSE 'MODERATE DEMAND'
-                            END as demand_level
-                        FROM product_sales ps
-                        LEFT JOIN inventory_status is ON ps.product_id = is.product_id
-                        WHERE ps.total_sold > 10
-                        ORDER BY ps.total_sold DESC, COALESCE(is.total_stock, 0) ASC
-                        LIMIT 20
+                                WHEN confidence_score >= 0.8 AND current_stock = 0 THEN 'URGENT_RESTOCK'
+                                WHEN confidence_score >= 0.7 THEN 'HIGH_CONFIDENCE'
+                                WHEN confidence_score >= 0.5 THEN 'MEDIUM_CONFIDENCE'
+                                WHEN confidence_score >= 0.3 THEN 'INVESTIGATE'
+                                ELSE 'LOW_CONFIDENCE'
+                            END as recommendation,
+                            
+                            -- Actionable insights
+                            CASE 
+                                WHEN current_stock = 0 AND confidence_score > 0.6 
+                                THEN CONCAT('Immediate restock needed - estimated ', 
+                                           ROUND(estimated_weekly_demand * 7), ' units/week demand')
+                                WHEN days_since_last_sale > 21 AND historical_avg > 1
+                                THEN 'Long sales gap detected - verify inventory or investigate external factors'
+                                WHEN trend_slope < -0.005 
+                                THEN 'Declining trend - monitor market conditions before restocking'
+                                ELSE 'Monitor inventory levels and sales patterns'
+                            END as insight
+                            
+                        FROM hidden_demand_scoring
+                        WHERE confidence_score >= %s
+                        ORDER BY confidence_score DESC, estimated_weekly_demand DESC
+                        LIMIT 100
                         """
                         
-                        hidden_demand_df = execute_query_for_dashboard(sql)
+                        params = (f"{lookback_days} days", confidence_threshold)
+                        hidden_demand_df = execute_query_for_dashboard(sql, params)
+                        
                         if hidden_demand_df is not None and not hidden_demand_df.empty:
-                            st.success(f"✅ Found {len(hidden_demand_df)} products with hidden demand!")
-                            st.dataframe(hidden_demand_df.head(10), use_container_width=True)
+                            # Summary metrics
+                            urgent_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'URGENT_RESTOCK'])
+                            high_conf_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'HIGH_CONFIDENCE'])
+                            total_estimated_demand = hidden_demand_df['weekly_demand_estimate'].sum()
+                            
+                            col1_metrics, col2_metrics, col3_metrics = st.columns(3)
+                            with col1_metrics:
+                                st.metric("🚨 Urgent Restocks", urgent_count)
+                            with col2_metrics:  
+                                st.metric("✅ High Confidence", high_conf_count)
+                            with col3_metrics:
+                                st.metric("📈 Total Est. Weekly Demand", f"{total_estimated_demand:,.0f} units")
+                            
+                            # Enhanced data display with conditional formatting
+                            def style_confidence(val):
+                                if val >= 80: return 'background-color: #ff4444; color: white; font-weight: bold'
+                                elif val >= 70: return 'background-color: #ff8800; color: white'
+                                elif val >= 50: return 'background-color: #ffdd00; color: black'
+                                else: return 'background-color: #dddddd; color: black'
+                            
+                            def style_recommendation(val):
+                                colors = {
+                                    'URGENT_RESTOCK': 'background-color: #ff0000; color: white; font-weight: bold',
+                                    'HIGH_CONFIDENCE': 'background-color: #ff6600; color: white',
+                                    'MEDIUM_CONFIDENCE': 'background-color: #ffaa00; color: black',
+                                    'INVESTIGATE': 'background-color: #ffff00; color: black'
+                                }
+                                return colors.get(val, '')
+                            
+                            styled_df = hidden_demand_df.style.applymap(
+                                style_confidence, subset=['confidence_percent']
+                            ).applymap(
+                                style_recommendation, subset=['recommendation'] 
+                            )
+                            
+                            st.dataframe(styled_df, use_container_width=True)
+                            
+                            # Visualization
+                            if len(hidden_demand_df) > 5:
+                                try:
+                                    import plotly.express as px
+                                    fig = px.scatter(
+                                        hidden_demand_df, 
+                                        x='days_since_last_sale', 
+                                        y='weekly_demand_estimate',
+                                        size='confidence_percent',
+                                        color='recommendation',
+                                        hover_data=['product_name', 'store_name'],
+                                        title='Hidden Demand Analysis: Confidence vs Estimated Demand'
+                                    )
+                                    fig.update_layout(template="plotly_dark", plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+                                    st.plotly_chart(fig, use_container_width=True)
+                                except ImportError:
+                                    st.info("📊 Install plotly for interactive visualizations")
                             
                             # Download option
                             csv_data = hidden_demand_df.to_csv(index=False)
                             st.download_button(
-                                "📥 Download Hidden Demand Report",
+                                "📥 Download Advanced Hidden Demand Report",
                                 csv_data,
-                                "hidden_demand_analysis.csv",
+                                "advanced_hidden_demand_analysis.csv",
                                 "text/csv",
                                 use_container_width=True
                             )
                         else:
-                            st.info("No hidden demand patterns detected.")
+                            st.success("✅ No hidden demand detected at current confidence threshold")
+                            
                     except Exception as e:
                         st.error(f"Error analyzing hidden demand: {e}")
+                
+                # Reset trigger
+                st.session_state.trigger_hidden_demand_analysis = False
         
         with col2:
             if st.button("🧯 Predict Stockouts", key="predict_stockouts"):

@@ -6,7 +6,7 @@ I have successfully added an "Advanced Analytics" page to the existing Streamlit
 ## What Was Implemented
 
 ### 1. 🔍 Demand Analytics Engine
-- **Hidden Demand Detection**: Analyzes sales patterns and inventory levels to identify products that would sell more if they were in stock
+- **Advanced Hidden Demand Detection**: Statistically robust system using time-series analysis, correlation, and multi-factor confidence scoring
 - **Stockout Prediction**: Calculates days until stockout using daily velocity analysis with risk categorization (CRITICAL, WARNING, SAFE)
 
 ### 2. 📊 Predictive Forecasting Engine
@@ -26,6 +26,68 @@ I have successfully added an "Advanced Analytics" page to the existing Streamlit
 ### 5. 🤖 Automated Insight Engine
 - **Weekly Business Review**: AI-powered analysis using Claude API
 - **Comprehensive Reporting**: Performance metrics, trends, and actionable recommendations
+
+## Advanced Statistical System for Hidden Demand Detection
+
+### Core Features
+- **Time-Series Analysis**: Daily sales patterns with gap detection and trend correlation
+- **Statistical Confidence Scoring**: Multi-factor algorithm (0-100% confidence scale)
+- **Demand Volatility Assessment**: Separates normal variation from disruptions
+- **Rolling Averages**: 14-day moving averages to smooth demand patterns
+- **Regression Analysis**: Linear trend detection using REGR_SLOPE and CORR
+- **Multi-Factor Recommendation System**: URGENT_RESTOCK, HIGH_CONFIDENCE, MEDIUM_CONFIDENCE, INVESTIGATE
+- **Actionable Insights**: Specific business recommendations for each product
+
+### Statistical Methodology
+```sql
+-- Core demand metrics
+AVG(daily_qty) as avg_daily_demand,
+STDDEV(daily_qty) as demand_volatility,
+COUNT(*) as sales_days,
+
+-- Time gap analysis
+AVG(CASE WHEN gap_days IS NOT NULL THEN gap_days ELSE 1 END) as avg_gap_days,
+MAX(gap_days) as max_gap_days,
+CURRENT_DATE - MAX(sale_date) as days_since_last_sale,
+
+-- Trend detection (simplified linear regression)
+REGR_SLOPE(daily_qty, EXTRACT(EPOCH FROM sale_date)) as trend_slope,
+CORR(daily_qty, EXTRACT(EPOCH FROM sale_date)) as trend_correlation,
+
+-- Recent vs historical comparison
+AVG(CASE WHEN sale_date >= CURRENT_DATE - INTERVAL '30 days' 
+    THEN daily_qty ELSE NULL END) as recent_30d_avg,
+AVG(CASE WHEN sale_date < CURRENT_DATE - INTERVAL '30 days' 
+    THEN daily_qty ELSE NULL END) as historical_avg
+```
+
+### Confidence Scoring Algorithm
+```sql
+-- Multi-factor confidence score (0-1 scale)
+LEAST(1.0, GREATEST(0.0,
+    (CASE WHEN historical_avg > 1.0 THEN 0.3 ELSE historical_avg * 0.3 END) +
+    (stockout_signal * 0.25) +
+    (disruption_score * 0.25) +
+    (CASE WHEN trend_correlation > 0.1 THEN 0.1 ELSE 0 END) +
+    (CASE WHEN demand_volatility < avg_daily_demand THEN 0.1 ELSE 0 END)
+)) as confidence_score
+```
+
+### User Interface Features
+- **Configurable Parameters**: Analysis period (90, 120, 180, 365 days) and confidence threshold (0.3-0.9)
+- **Summary Metrics**: Urgent restocks, high confidence items, total estimated weekly demand
+- **Conditional Formatting**: Color-coded confidence levels and recommendations
+- **Interactive Visualization**: Scatter plot showing confidence vs estimated demand
+- **Actionable Insights**: Specific business recommendations for each product
+
+### Output Metrics
+- **Product & Store**: Product name, store name, category
+- **Demand Metrics**: Average daily demand, demand volatility, days since last sale
+- **Inventory Status**: Current stock levels
+- **Confidence Scoring**: Confidence percentage (0-100%)
+- **Demand Estimates**: Weekly demand estimates based on historical patterns
+- **Recommendations**: URGENT_RESTOCK, HIGH_CONFIDENCE, MEDIUM_CONFIDENCE, INVESTIGATE
+- **Insights**: Specific actionable business recommendations
 
 ## Navigation Integration
 
@@ -75,7 +137,7 @@ The implementation uses the exact database tables specified:
 
 ### Analytics Engine Integration
 All analytics engines are properly integrated:
-- **Demand Analytics Engine**: Direct SQL implementation for demand detection and stockout prediction
+- **Demand Analytics Engine**: Advanced statistical system for demand detection and stockout prediction
 - **Predictive Forecasting Engine**: Advanced forecasting with multiple algorithms
 - **Customer Intelligence Engine**: Deep customer behavior analysis
 - **Smart Alert Manager**: Proactive alert system
@@ -93,7 +155,7 @@ All analytics engines are properly integrated:
 - `name 'AutomatedInsightEngine' is not defined`
 
 **Solution**: Implemented direct SQL-based analytics functions
-- **Hidden Demand Detection**: Direct SQL implementation with sales and inventory analysis
+- **Hidden Demand Detection**: Advanced statistical system with time-series analysis and confidence scoring
 - **Demand Forecasting**: Direct SQL implementation with weekly sales analysis
 - **Seasonal Analysis**: SQL-based coefficient of variation calculation
 - **Product Lifecycle**: SQL analysis of sales trends and product stages
@@ -114,7 +176,7 @@ All analytics engines are properly integrated:
 
 ### Tabbed Interface
 The Advanced Analytics page is organized into 5 intuitive tabs:
-1. **Demand Analytics** - Hidden demand and stockout prediction
+1. **Demand Analytics** - Advanced hidden demand detection with statistical confidence
 2. **Predictive Forecasting** - Trend analysis and seasonality
 3. **Customer Intelligence** - Behavior patterns and segmentation
 4. **Smart Alerts** - Proactive monitoring and alerts
@@ -176,12 +238,13 @@ The Advanced Analytics page is organized into 5 intuitive tabs:
 ### Accessing Advanced Analytics
 1. **Navigate to Advanced Analytics**: Click "Advanced Analytics" in the sidebar navigation
 2. **Select Analytics Category**: Choose from the 5 available tabs
-3. **Run Analysis**: Click the action buttons to execute specific analytics
-4. **Review Results**: View dataframes and download results as CSV files
-5. **Apply Insights**: Use the generated insights for business decisions
+3. **Configure Parameters**: Set analysis period and confidence thresholds
+4. **Run Analysis**: Click the action buttons to execute specific analytics
+5. **Review Results**: View dataframes and download results as CSV files
+6. **Apply Insights**: Use the generated insights for business decisions
 
 ### Available Analytics
-- **Hidden Demand Detection**: Identify products with sales potential but stockouts
+- **Advanced Hidden Demand Detection**: Statistical analysis with confidence scoring and actionable insights
 - **Stockout Prediction**: Calculate days until stockout with risk assessment
 - **Demand Forecasting**: Predict future demand trends and patterns
 - **Seasonal Analysis**: Identify products with seasonal sales patterns
@@ -235,5 +298,6 @@ The Advanced Analytics page has been successfully implemented with all requested
 - ✅ **NEW**: Dedicated page in sidebar navigation
 - ✅ **FIXED**: All NameError issues resolved with direct SQL implementation
 - ✅ **RENAMED**: "AI Analytics" changed to "Demand Analytics" for clarity
+- ✅ **UPGRADED**: Advanced Statistical System for hidden demand detection with confidence scoring
 
-The implementation provides a powerful analytics suite that enhances the existing Streamlit app while maintaining all existing functionality and following established coding patterns. Users can now access advanced business intelligence through a dedicated, well-organized page in the sidebar navigation with fully functional analytics features.
+The implementation provides a powerful analytics suite that enhances the existing Streamlit app while maintaining all existing functionality and following established coding patterns. Users can now access advanced business intelligence through a dedicated, well-organized page in the sidebar navigation with fully functional analytics features, including a statistically robust hidden demand detection system.
