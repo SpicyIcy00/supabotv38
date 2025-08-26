@@ -2996,27 +2996,33 @@ def render_dashboard():
     # Import mobile dashboard components
     try:
         from supabot.ui.components.mobile_dashboard import MobileDashboard
-        from supabot.ui.components.mobile.responsive_wrapper import ResponsiveWrapper
         mobile_available = True
     except ImportError:
         mobile_available = False
-        st.warning("Mobile components not available. Using desktop layout only.")
+    
+    # Add mobile toggle in sidebar for testing
+    if mobile_available:
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### 📱 Mobile Testing")
+        
+        # Force mobile mode toggle
+        force_mobile = st.sidebar.checkbox("Force Mobile Mode", value=False, key="force_mobile")
+        
+        if force_mobile:
+            st.session_state.screen_size = 'mobile'
+        else:
+            # Check if we have a screen size set, otherwise default to desktop
+            if 'screen_size' not in st.session_state:
+                st.session_state.screen_size = 'desktop'
     
     # Check if mobile components are available and we're on mobile
     if mobile_available:
-        # Try to detect if we're on mobile
-        try:
-            screen_size = ResponsiveWrapper.get_screen_size()
-            st.info(f"🔍 Detected screen size: {screen_size}")
-            
-            if screen_size == 'mobile':
-                st.info("📱 Using mobile-responsive layout")
-                render_responsive_dashboard()
-            else:
-                st.info("🖥️ Using desktop layout")
-                render_legacy_dashboard()
-        except Exception as e:
-            st.warning(f"⚠️ Screen detection failed: {e}. Using desktop layout.")
+        # Simple mobile detection - check session state first
+        screen_size = st.session_state.get('screen_size', 'desktop')
+        
+        if screen_size == 'mobile':
+            render_responsive_dashboard()
+        else:
             render_legacy_dashboard()
     else:
         render_legacy_dashboard()
@@ -3047,26 +3053,20 @@ def render_responsive_dashboard():
     # Get metrics
     try:
         metrics = get_dashboard_metrics(st.session_state.dashboard_time_filter, store_ids)
-        st.info(f"📊 Loaded metrics for {st.session_state.dashboard_time_filter}")
     except Exception as e:
-        st.error(f"❌ Failed to load metrics: {e}")
         metrics = {}
     
     # Get sales trend data
     try:
         sales_df = get_sales_trend_data(st.session_state.dashboard_time_filter, store_ids)
-        st.info(f"📈 Loaded sales trend data: {len(sales_df) if sales_df is not None else 0} rows")
     except Exception as e:
-        st.error(f"❌ Failed to load sales trend: {e}")
         sales_df = pd.DataFrame()
     
     # Get category data
     try:
         sales_cat_df = get_sales_by_category_data(st.session_state.dashboard_time_filter, store_ids)
         inv_cat_df = get_inventory_by_category_data(store_ids)
-        st.info(f"📂 Loaded category data: {len(sales_cat_df) if sales_cat_df is not None else 0} rows")
     except Exception as e:
-        st.error(f"❌ Failed to load category data: {e}")
         sales_cat_df = pd.DataFrame()
         inv_cat_df = pd.DataFrame()
     
@@ -3074,9 +3074,7 @@ def render_responsive_dashboard():
     try:
         top_change_df = get_top_products_with_change(st.session_state.dashboard_time_filter, store_ids)
         cat_change_df = get_categories_with_change(st.session_state.dashboard_time_filter, store_ids)
-        st.info(f"🏆 Loaded top products: {len(top_change_df) if top_change_df is not None else 0} rows")
     except Exception as e:
-        st.error(f"❌ Failed to load top products/categories: {e}")
         top_change_df = pd.DataFrame()
         cat_change_df = pd.DataFrame()
     
