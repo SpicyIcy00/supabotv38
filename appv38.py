@@ -1196,7 +1196,6 @@ def get_intelligent_date_range(time_filter: str) -> Dict[str, Any]:
         - 1D: Yesterday only
         - 7D: Current week to date (Monday to today)
         - 1M: Current month to date (1st of month to today)
-        - 3M: Last 3 months (90 days)
         - 6M: Current month to date (1st of month to today) - for backward compatibility
         - 1Y: Current year to date (1st of year to today)
     """
@@ -1253,16 +1252,6 @@ def get_intelligent_date_range(time_filter: str) -> Dict[str, Any]:
             'description': description
         }
     
-    elif time_filter == "3M":
-        # Last 3 months (90 days)
-        start_date = (now_mnl - timedelta(days=90)).date()
-        end_date = now_mnl.date()
-        return {
-            'start_date': start_date,
-            'end_date': end_date,
-            'description': f'Last 3 months ({start_date.strftime("%b %d")} to {end_date.strftime("%b %d")})'
-        }
-    
     elif time_filter == "6M":
         # For backward compatibility, use current month to date
         start_date = now_mnl.replace(day=1).date()
@@ -1293,11 +1282,6 @@ def get_intelligent_date_range(time_filter: str) -> Dict[str, Any]:
             'end_date': end_date,
             'description': f'Week to date ({start_date.strftime("%b %d")} to {end_date.strftime("%b %d")})'
         }
-
-def validate_time_period(time_filter: str) -> bool:
-    """Validate that a time filter is supported."""
-    valid_filters = ["1D", "7D", "1M", "3M", "6M", "1Y", "Custom"]
-    return time_filter in valid_filters
 
 def test_comparison_logic():
     """Test function to verify comparison logic is working correctly"""
@@ -3018,20 +3002,12 @@ def render_dashboard():
         st.markdown('<div class="filter-container">', unsafe_allow_html=True)
         filter_col1, filter_col2, filter_col3 = st.columns([2, 2, 2])
         with filter_col1:
-            time_options = ["1D", "7D", "1M", "3M", "6M", "1Y", "Custom"]
-            
-            # Validate current time filter
-            if st.session_state.dashboard_time_filter not in time_options:
-                st.warning(f"⚠️ Invalid time filter '{st.session_state.dashboard_time_filter}' detected, resetting to '7D'")
-                st.session_state.dashboard_time_filter = "7D"
-            
-            time_index = time_options.index(st.session_state.dashboard_time_filter)
+            time_options = ["1D", "7D", "1M", "6M", "1Y", "Custom"]
+            time_index = time_options.index(st.session_state.dashboard_time_filter) if st.session_state.dashboard_time_filter in time_options else 1
             st.session_state.dashboard_time_filter = st.radio(
                 "Select Time Period:", options=time_options, index=time_index,
                 horizontal=True, key="time_filter_selector"
             )
-            
-
             
             # Custom date range (only show if Custom is selected)
             if st.session_state.dashboard_time_filter == "Custom":
@@ -3055,10 +3031,8 @@ def render_dashboard():
                 
                 # Validate dates
                 if custom_start > custom_end:
-                    st.error("❌ Start date cannot be after end date!")
+                    st.error("Start date cannot be after end date!")
                     return
-                
-
         
         with filter_col2:
             # Middle column - can be used for additional filters or left empty
@@ -3857,18 +3831,14 @@ def get_chart_view_data(time_range, metric_type, granularity, filters, store_fil
 
     params = []
     
-    # Time Range Filter - Now using consistent uppercase format
-    time_filter = time_range  # No mapping needed since we're using consistent format
-    
-
+    # Time Range Filter - Updated to use intelligent date ranges
+    time_filter_map = {"1d": "1D", "7d": "7D", "1m": "1M", "3m": "6M", "6m": "6M", "1y": "1Y"}
+    time_filter = time_filter_map.get(time_range, "7D")
     
     # Get intelligent date ranges
-    try:
-        date_range = get_intelligent_date_range(time_filter)
-        current_start = date_range['start_date']
-        current_end = date_range['end_date']
-        
-
+    date_range = get_intelligent_date_range(time_filter)
+    current_start = date_range['start_date']
+    current_end = date_range['end_date']
     
     # If grouping by week, widen the window to capture full weeks so recent buckets aren't truncated
     if granularity == "Week":
@@ -4009,45 +3979,21 @@ def get_chart_view_data(time_range, metric_type, granularity, filters, store_fil
 def render_chart_view():
     """Render the enhanced Chart View page with multi-select, live search, and comparison."""
     st.markdown('<div class="main-header"><h1>📈 Chart View</h1><p>Deep dive analytics with interactive visualizations</p></div>', unsafe_allow_html=True)
-    
-
 
     # --- Session State Initialization ---
-    if 'cv_time' not in st.session_state: st.session_state.cv_time = "7D"
+    if 'cv_time' not in st.session_state: st.session_state.cv_time = "7d"
     if 'cv_metric_type' not in st.session_state: st.session_state.cv_metric_type = "Stores"
     if 'cv_granularity' not in st.session_state: st.session_state.cv_granularity = "Day"
-    if 'comparison_sets' not in st.session_state: st.session_state.comparison_sets = [{}]
-    
-    # Initialize default comparison set if empty
-    if not st.session_state.comparison_sets or (len(st.session_state.comparison_sets) == 1 and not st.session_state.comparison_sets[0]):
-        # Set default filters for Stores metric type
-        st.session_state.comparison_sets = [{
-            'filters': ['Rockwell'],  # Default to Rockwell store
-            'stores': []
-        }]
- 
+    if 'comparison_sets' not in st.session_state: st.session_state.comparison_sets = [{}] 
 
     # Fetch all possible filter options once
     filter_options = get_filter_options()
-    
-    # Ensure we have filter options
-    if not filter_options.get('stores'):
-        st.error("❌ No stores available for filtering")
-        return
 
     # --- Time Period Selector ---
     st.markdown("### ⏱️ Time Period")
-    time_ranges = ["1D", "7D", "1M", "3M", "6M", "1Y"]
-    
-    # Validate current time filter
-    if st.session_state.cv_time not in time_ranges:
-        st.warning(f"⚠️ Invalid time filter '{st.session_state.cv_time}' detected, resetting to '7D'")
-        st.session_state.cv_time = "7D"
-    
-    current_time_index = time_ranges.index(st.session_state.cv_time)
+    time_ranges = ["1d", "7d", "1m", "3m", "6m", "1y"]
+    current_time_index = time_ranges.index(st.session_state.cv_time) if st.session_state.cv_time in time_ranges else 1
     st.session_state.cv_time = st.radio("", time_ranges, index=current_time_index, horizontal=True, key="time_range_selector")
-    
-
     
     # --- Main Controls ---
     st.markdown("### 🎛️ Analytics Controls")
@@ -4061,8 +4007,6 @@ def render_chart_view():
     with c2:
         # Do not set a default index when using a session-state-backed key to avoid Streamlit warning
         st.selectbox("Time Granularity", ["Minute", "Hour", "Day", "Week", "Month"], key="cv_granularity")
-        
-
 
     st.markdown('</div>', unsafe_allow_html=True)  # Close filter-container
     
@@ -4100,15 +4044,7 @@ def render_chart_view():
                 label = "Select Store(s) to Plot" if st.session_state.cv_metric_type == "Stores" else "Select Store(s) for Avg. Transaction Value"
                 selected = st.multiselect(label, filter_options["stores"], default=current_filters.get("filters", []), key=f"filters_{i}")
                 st.session_state.comparison_sets[i]['filters'] = selected
-                if selected: 
-                    metric_filters.extend(selected)
-                else:
-                    # If no filters selected, use default
-                    if i == 0:  # Primary set
-                        default_filters = ['Rockwell']
-                        st.session_state.comparison_sets[i]['filters'] = default_filters
-                        metric_filters.extend(default_filters)
-
+                if selected: metric_filters.extend(selected)
             
             elif st.session_state.cv_metric_type == "Product Categories":
                 category_options = ["All"] + filter_options["categories"]
@@ -4164,14 +4100,9 @@ def render_chart_view():
                         st.session_state.cv_time, st.session_state.cv_metric_type,
                         st.session_state.cv_granularity, metric_filters, selected_stores
                     )
-                    
-                                        if data_subset is not None and not data_subset.empty:
+                    if not data_subset.empty:
                         data_subset['set_index'] = i
                         all_data_frames.append(data_subset)
-                    else:
-                        st.warning(f"⚠️ No data returned for {label} with filters: {metric_filters}")
-                else:
-                    st.warning(f"⚠️ No metric filters selected for {label}")
 
     if st.button("🆚 Add Comparison"):
         st.session_state.comparison_sets.append({})
@@ -4187,52 +4118,6 @@ def render_chart_view():
     if data.empty:
         st.info("No data available for the selected filters.")
         return
-    
-    # Validate required columns exist
-    required_columns = ['date', 'total_revenue', 'series_name', 'base_name', 'store_name']
-    missing_columns = [col for col in required_columns if col not in data.columns]
-    
-    if missing_columns:
-        st.error(f"❌ Missing required columns: {missing_columns}")
-        st.write("🔍 Available columns:", list(data.columns))
-        st.write("📊 Data sample:")
-        st.dataframe(data.head(), use_container_width=True)
-        return
-    
-    # Ensure date column is datetime
-    try:
-        data['date'] = pd.to_datetime(data['date'])
-    except Exception as e:
-        st.error(f"❌ Error converting date column: {e}")
-        st.write("🔍 Date column sample:", data['date'].head())
-        return
-    
-    # Ensure total_revenue is numeric
-    try:
-        data['total_revenue'] = pd.to_numeric(data['total_revenue'], errors='coerce')
-        # Remove rows with NaN revenue
-        data = data.dropna(subset=['total_revenue'])
-        if data.empty:
-            st.error("❌ No valid revenue data after cleaning")
-            return
-        
-        # Check if we have any positive values
-        if data['total_revenue'].sum() <= 0:
-            st.warning("⚠️ All revenue values are zero or negative")
-            st.write("📊 Data summary:")
-            st.write(f"- Total rows: {len(data)}")
-            st.write(f"- Revenue sum: {data['total_revenue'].sum():,.2f}")
-            st.write(f"- Revenue min: {data['total_revenue'].min():,.2f}")
-            st.write(f"- Revenue max: {data['total_revenue'].max():,.2f}")
-            st.dataframe(data, use_container_width=True)
-            return
-            
-    except Exception as e:
-        st.error(f"❌ Error converting revenue column: {e}")
-        st.write("🔍 Revenue column sample:", data['total_revenue'].head())
-        return
-    
-
 
     # Backfill weekly gaps with zeros so single-store weekly selections always render
     if st.session_state.cv_granularity == "Week":
@@ -4273,8 +4158,6 @@ def render_chart_view():
     total_visible_metric = data['total_revenue'].sum()
     st.metric(f"Total Value (Visible in Chart)", f"₱{total_visible_metric:,.0f}")
 
-
-
     fig = go.Figure()
 
     # --- Conditional Coloring Logic ---
@@ -4290,8 +4173,6 @@ def render_chart_view():
     color_by_category = (
         st.session_state.cv_metric_type == "Product Categories" and num_stores_selected == 1
     )
-    
-
 
     # Define color maps
     store_color_map = {'Rockwell': '#E74C3C', 'Greenhills': '#2ECC71', 'Magnolia': '#F1C40F', 'North Edsa': '#3498DB', 'Fairview': '#9B59B6'}
@@ -4321,19 +4202,8 @@ def render_chart_view():
     
     for series_name in sorted(data['series_name'].unique()):
         series_df = data[data['series_name'] == series_name]
-        
-        # Ensure series_name is a string
-        if pd.isna(series_name) or series_name is None:
-            st.warning(f"⚠️ Skipping series with invalid name: {series_name}")
-            continue
-            
         base_name = series_df['base_name'].iloc[0]
         set_index = series_df['set_index'].iloc[0]
-        
-        # Ensure base_name is valid
-        if pd.isna(base_name) or base_name is None:
-            st.warning(f"⚠️ Skipping series '{series_name}' with invalid base_name: {base_name}")
-            continue
 
         if color_by_category:
             # Use fixed category palette; base_name holds the category in this mode
@@ -4357,33 +4227,16 @@ def render_chart_view():
         if color_by_category:
             style = {'dash': 'solid', 'width': style['width']}
 
-        # Ensure date and revenue data are valid
-        valid_data = series_df.dropna(subset=['date', 'total_revenue'])
-        if valid_data.empty:
-            st.warning(f"⚠️ Skipping series '{series_name}' - no valid data after cleaning")
-            continue
-            
-        # Add glow effect trace
         fig.add_trace(go.Scatter(
-            x=valid_data['date'], y=valid_data['total_revenue'], name=series_name + "_glow",
+            x=series_df['date'], y=series_df['total_revenue'], name=series_name + "_glow",
             line=dict(color=color, width=style['width'] * 2.5, dash=style['dash'], shape='spline'),
             opacity=0.2, mode='lines', showlegend=False, hoverinfo='none'
         ))
-        
-        # Add main trace
         fig.add_trace(go.Scatter(
-            x=valid_data['date'], y=valid_data['total_revenue'], name=series_name,
+            x=series_df['date'], y=series_df['total_revenue'], name=series_name,
             line=dict(color=color, width=style['width'], dash=style['dash'], shape='spline'),
             fill='tozeroy', fillcolor=fillcolor, mode='lines'
         ))
-    
-    # Validate that traces were added
-    if len(fig.data) == 0:
-        st.error("❌ No chart traces were created!")
-        st.write("🔍 This usually means the data is empty or malformed")
-        st.write("📊 Showing raw data for debugging:")
-        st.dataframe(data, use_container_width=True)
-        return
 
     fig.update_layout(
         title_text=chart_title, template="plotly_dark", plot_bgcolor='#131722', paper_bgcolor='#131722',
@@ -4393,20 +4246,7 @@ def render_chart_view():
         yaxis=dict(title_text=f'<b>{y_axis_title}</b>', title_font=dict(size=14), tickfont=dict(color='#B0B0B0'), gridcolor='rgba(255, 255, 255, 0.1)', tickprefix="₱", tickformat=",.0f", hoverformat=",.0f", showgrid=True, zeroline=False),
         hoverlabel=dict(bgcolor="#2A2E39", font_size=14)
     )
-    
-    # Render the chart with error handling
-    try:
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': True})
-    except Exception as e:
-        st.error(f"❌ Error rendering chart: {e}")
-        st.write("🔍 Debug: Chart data summary:")
-        st.write(f"- Total traces: {len(fig.data)}")
-        st.write(f"- Data shape: {data.shape}")
-        st.write(f"- Series count: {len(data['series_name'].unique())}")
-        
-        # Fallback: Show data as table
-        st.write("📊 Showing data as table instead:")
-        st.dataframe(data, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
 
     with st.expander("📋 View Detailed Data"):
         st.dataframe(data, use_container_width=True, hide_index=True)
