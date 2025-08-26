@@ -3883,12 +3883,10 @@ def render_advanced_analytics():
             st.info("📊 Statistical analysis of demand patterns with confidence scoring")
             
             # Configuration controls
-            col1_1, col1_2, col1_3 = st.columns(3)
+            col1_1, col1_2 = st.columns(2)
             with col1_1:
                 lookback_days = st.selectbox("Analysis Period", [7, 14, 30, 60, 90], index=2, key="lookback_days")
             with col1_2:
-                confidence_threshold = st.slider("Confidence Threshold", 0.3, 0.9, 0.7, 0.1, key="confidence_threshold")
-            with col1_3:
                 if st.button("🔍 Analyze Hidden Demand", type="primary", key="analyze_hidden_demand"):
                     st.session_state.trigger_hidden_demand_analysis = True
             
@@ -4036,27 +4034,36 @@ def render_advanced_analytics():
                             END as insight
                             
                         FROM hidden_demand_scoring
-                        WHERE confidence_score >= %s
                         ORDER BY confidence_score DESC, estimated_weekly_demand DESC
                         LIMIT 100
                         """
                         
-                        params = (f"{lookback_days} days", confidence_threshold)
+                        params = (f"{lookback_days} days",)
                         hidden_demand_df = execute_query_for_dashboard(sql, params)
                         
                         if hidden_demand_df is not None and not hidden_demand_df.empty:
+                            # Debugging output
+                            st.info(f"📊 Analyzed {len(hidden_demand_df)} products with sales history in the last {lookback_days} days")
+                            
                             # Summary metrics
                             urgent_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'URGENT_RESTOCK'])
                             high_conf_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'HIGH_CONFIDENCE'])
+                            medium_conf_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'MEDIUM_CONFIDENCE'])
+                            investigate_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'INVESTIGATE'])
+                            low_conf_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'LOW_CONFIDENCE'])
                             total_estimated_demand = hidden_demand_df['weekly_demand_estimate'].sum()
                             
-                            col1_metrics, col2_metrics, col3_metrics = st.columns(3)
+                            col1_metrics, col2_metrics, col3_metrics, col4_metrics, col5_metrics = st.columns(5)
                             with col1_metrics:
-                                st.metric("🚨 Urgent Restocks", urgent_count)
+                                st.metric("🚨 Urgent", urgent_count)
                             with col2_metrics:  
-                                st.metric("✅ High Confidence", high_conf_count)
+                                st.metric("✅ High Conf", high_conf_count)
                             with col3_metrics:
-                                st.metric("📈 Total Est. Weekly Demand", f"{total_estimated_demand:,.0f} units")
+                                st.metric("🟡 Medium Conf", medium_conf_count)
+                            with col4_metrics:
+                                st.metric("🔍 Investigate", investigate_count)
+                            with col5_metrics:
+                                st.metric("📈 Est. Demand", f"{total_estimated_demand:,.0f}")
                             
                             # Enhanced data display with conditional formatting
                             def style_confidence(val):
@@ -4110,7 +4117,8 @@ def render_advanced_analytics():
                                 use_container_width=True
                             )
                         else:
-                            st.success("✅ No hidden demand detected at current confidence threshold")
+                            st.warning("⚠️ No products found with sufficient sales history for analysis")
+                            st.info("💡 Try increasing the analysis period or check if there are recent sales transactions")
                             
                     except Exception as e:
                         st.error(f"Error analyzing hidden demand: {e}")
