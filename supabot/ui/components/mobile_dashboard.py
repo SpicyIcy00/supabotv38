@@ -40,6 +40,10 @@ class MobileDashboard:
             time_filter: Current time filter
             selected_stores: Selected stores
         """
+        # Load mobile-responsive CSS
+        from mobile_responsive_css import get_mobile_responsive_css
+        st.markdown(get_mobile_responsive_css(), unsafe_allow_html=True)
+        
         # Detect screen size and set session state
         screen_size = ResponsiveWrapper.get_screen_size()
         st.session_state.screen_size = screen_size
@@ -48,13 +52,13 @@ class MobileDashboard:
         if screen_size == 'mobile':
             MobileDashboard._render_mobile_header()
         
-        # Render KPI section
+        # Render KPI section with responsive design
         MobileDashboard._render_kpi_section(metrics, time_filter)
         
-        # Render charts section
+        # Render charts section with responsive design
         MobileDashboard._render_charts_section(sales_df, sales_cat_df, inv_cat_df)
         
-        # Render products section
+        # Render products section with responsive design
         MobileDashboard._render_products_section(top_change_df, cat_change_df)
         
         # Render mobile navigation
@@ -72,11 +76,64 @@ class MobileDashboard:
         """Render KPI section with responsive layout."""
         st.markdown("## 🚀 Key Performance Indicators")
         
-        # Use responsive KPI grid
-        if st.session_state.get('screen_size', 'desktop') == 'mobile':
-            MobileKPICards.render_kpi_grid(metrics, time_filter)
+        # Use responsive KPI grid with CSS classes
+        screen_size = st.session_state.get('screen_size', 'desktop')
+        
+        if screen_size == 'mobile':
+            # Mobile KPI grid with custom CSS
+            st.markdown('<div class="kpi-grid">', unsafe_allow_html=True)
+            
+            # Sales KPI
+            sales_change = MobileKPICards._calculate_percentage_change(metrics.get('current_sales', 0), metrics.get('prev_sales', 0))
+            st.markdown(f"""
+            <div class="kpi-card">
+                <h3>Sales ({time_filter})</h3>
+                <div class="value">₱{metrics.get('current_sales', 0):,.0f}</div>
+                <div class="change {'positive' if sales_change and sales_change >= 0 else 'negative'}">
+                    {f'{sales_change:+.1f}%' if sales_change is not None else 'N/A'}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Profit KPI
+            profit_change = MobileKPICards._calculate_percentage_change(metrics.get('current_profit', 0), metrics.get('prev_profit', 0))
+            st.markdown(f"""
+            <div class="kpi-card">
+                <h3>Profit ({time_filter})</h3>
+                <div class="value">₱{metrics.get('current_profit', 0):,.0f}</div>
+                <div class="change {'positive' if profit_change and profit_change >= 0 else 'negative'}">
+                    {f'{profit_change:+.1f}%' if profit_change is not None else 'N/A'}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Transactions KPI
+            trans_change = MobileKPICards._calculate_percentage_change(metrics.get('current_transactions', 0), metrics.get('prev_transactions', 0))
+            st.markdown(f"""
+            <div class="kpi-card">
+                <h3>Transactions</h3>
+                <div class="value">{metrics.get('current_transactions', 0):,}</div>
+                <div class="change {'positive' if trans_change and trans_change >= 0 else 'negative'}">
+                    {f'{trans_change:+.1f}%' if trans_change is not None else 'N/A'}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Products Sold KPI
+            products_change = MobileKPICards._calculate_percentage_change(metrics.get('current_products_sold', 0), metrics.get('prev_products_sold', 0))
+            st.markdown(f"""
+            <div class="kpi-card">
+                <h3>Products Sold</h3>
+                <div class="value">{metrics.get('current_products_sold', 0):,}</div>
+                <div class="change {'positive' if products_change and products_change >= 0 else 'negative'}">
+                    {f'{products_change:+.1f}%' if products_change is not None else 'N/A'}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
         else:
-            # Use desktop layout
+            # Desktop layout with columns
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
@@ -112,26 +169,128 @@ class MobileDashboard:
     @staticmethod
     def _render_charts_section(sales_df: pd.DataFrame, sales_cat_df: pd.DataFrame, inv_cat_df: pd.DataFrame):
         """Render charts section with responsive layout."""
-        st.markdown("## 📊 Analytics & Visualizations")
+        screen_size = st.session_state.get('screen_size', 'desktop')
         
-        # Sales trend chart
-        MobileCharts.render_sales_trend_chart(sales_df, "📈 Sales Trend")
-        
-        # Pie charts
-        MobileCharts.render_pie_charts(sales_cat_df, inv_cat_df)
+        if screen_size == 'mobile':
+            # Mobile charts with responsive CSS
+            st.markdown('<div class="charts-container">', unsafe_allow_html=True)
+            
+            # Sales trend chart
+            if not sales_df.empty:
+                st.markdown('<div class="chart-wrapper">', unsafe_allow_html=True)
+                st.markdown('<h3>📈 Sales Trend</h3>', unsafe_allow_html=True)
+                st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+                MobileCharts.render_sales_trend_chart(sales_df, "📈 Sales Trend")
+                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Sales by category chart
+            if not sales_cat_df.empty:
+                st.markdown('<div class="chart-wrapper">', unsafe_allow_html=True)
+                st.markdown('<h3>📊 Sales by Category</h3>', unsafe_allow_html=True)
+                st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+                MobileCharts.render_pie_charts(sales_cat_df, inv_cat_df)
+                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            # Desktop layout
+            st.markdown("## 📊 Analytics & Visualizations")
+            
+            # Sales trend chart
+            MobileCharts.render_sales_trend_chart(sales_df, "📈 Sales Trend")
+            
+            # Pie charts
+            MobileCharts.render_pie_charts(sales_cat_df, inv_cat_df)
         
         st.markdown("<hr>", unsafe_allow_html=True)
     
     @staticmethod
     def _render_products_section(top_change_df: pd.DataFrame, cat_change_df: pd.DataFrame):
         """Render products section with responsive layout."""
-        st.markdown("## 🏆 Top Performers")
+        screen_size = st.session_state.get('screen_size', 'desktop')
         
-        # Top products
-        MobileProductList.render_product_list(top_change_df, "🏆 Top 10 Products")
-        
-        # Categories
-        MobileProductList.render_category_list(cat_change_df, "🗂️ Categories Ranked")
+        if screen_size == 'mobile':
+            # Mobile product list with custom CSS
+            if not top_change_df.empty:
+                st.markdown('<div class="mobile-product-list">', unsafe_allow_html=True)
+                st.markdown('<h3>🏆 Top 10 Products (with % change)</h3>', unsafe_allow_html=True)
+                
+                for index, row in top_change_df.head(10).iterrows():
+                    product_name = row.get('product_name', 'Unknown Product')
+                    total_revenue = row.get('total_revenue', 0)
+                    percentage_change = row.get('percentage_change', 0)
+                    
+                    change_class = 'positive' if percentage_change >= 0 else 'negative'
+                    change_symbol = '+' if percentage_change >= 0 else ''
+                    
+                    st.markdown(f"""
+                    <div class="product-card-mobile">
+                        <div class="product-header">
+                            <span class="rank">#{index + 1}</span>
+                            <span class="product-name">{product_name}</span>
+                        </div>
+                        <div class="product-stats">
+                            <span class="sales">₱{total_revenue:,.0f}</span>
+                            <span class="change {change_class}">{change_symbol}{percentage_change:.1f}%</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div class="mobile-product-list">
+                    <h3>🏆 Top 10 Products (with % change)</h3>
+                    <div style="padding: 20px; text-align: center; color: #ccc;">
+                        No product data available for selected period/stores.
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Mobile category list
+            if not cat_change_df.empty:
+                st.markdown('<div class="mobile-category-list">', unsafe_allow_html=True)
+                st.markdown('<h3>🗂️ Categories Ranked (with % change)</h3>', unsafe_allow_html=True)
+                
+                for index, row in cat_change_df.head(10).iterrows():
+                    category_name = row.get('category_name', 'Unknown Category')
+                    total_revenue = row.get('total_revenue', 0)
+                    percentage_change = row.get('percentage_change', 0)
+                    
+                    change_class = 'positive' if percentage_change >= 0 else 'negative'
+                    change_symbol = '+' if percentage_change >= 0 else ''
+                    
+                    st.markdown(f"""
+                    <div class="category-card-mobile">
+                        <div class="category-name">{category_name}</div>
+                        <div class="category-stats">
+                            <span class="sales">₱{total_revenue:,.0f}</span>
+                            <span class="change {change_class}">{change_symbol}{percentage_change:.1f}%</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div class="mobile-category-list">
+                    <h3>🗂️ Categories Ranked (with % change)</h3>
+                    <div style="padding: 20px; text-align: center; color: #ccc;">
+                        No category data available for selected period/stores.
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            # Desktop layout
+            st.markdown("## 🏆 Top Performers")
+            
+            # Top products
+            MobileProductList.render_product_list(top_change_df, "🏆 Top 10 Products")
+            
+            # Categories
+            MobileProductList.render_category_list(cat_change_df, "🗂️ Categories Ranked")
         
         st.markdown("<hr>", unsafe_allow_html=True)
     

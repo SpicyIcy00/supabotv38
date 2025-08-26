@@ -3031,63 +3031,89 @@ def render_responsive_dashboard():
     """Renders the responsive dashboard with mobile optimization."""
     from supabot.ui.components.mobile_dashboard import MobileDashboard
     
-    # Ensure session state is initialized
-    if "dashboard_time_filter" not in st.session_state:
-        st.session_state.dashboard_time_filter = "7D"
-    if "dashboard_store_filter" not in st.session_state:
-        st.session_state.dashboard_store_filter = ["Rockwell", "Greenhills", "Magnolia", "North Edsa", "Fairview"]
+    # Use the same data loading approach as legacy dashboard
+    st.markdown('<div class="main-header"><h1>📊 SupaBot Mobile BI Dashboard</h1><p>Mobile-optimized Business Intelligence</p></div>', unsafe_allow_html=True)
     
-    # Get store IDs for filtering
-    store_ids = None
-    if st.session_state.dashboard_store_filter:
+    # --- 1. Time and Store Selectors (Simplified for mobile) ---
+    filter_col1, filter_col2 = st.columns([1, 1])
+    with filter_col1:
+        time_options = ["1D", "7D", "1M", "6M", "1Y", "Custom"]
+        time_index = time_options.index(st.session_state.dashboard_time_filter) if st.session_state.dashboard_time_filter in time_options else 1
+        st.session_state.dashboard_time_filter = st.radio(
+            "Time Period:", options=time_options, index=time_index,
+            horizontal=True, key="mobile_time_filter"
+        )
+    
+    with filter_col2:
+        store_df = get_store_list()
+        store_list = store_df['name'].tolist()
+        all_stores_option = "All Stores"
+        
+        st.session_state.dashboard_store_filter = st.multiselect(
+            "Stores:",
+            options=[all_stores_option] + store_list,
+            default=st.session_state.dashboard_store_filter,
+            key="mobile_store_filter"
+        )
+    
+    # --- Process Filters (Same as legacy) ---
+    time_filter = st.session_state.dashboard_time_filter
+    selected_stores = st.session_state.dashboard_store_filter
+    
+    # Process store filter with robust resolution
+    store_filter_ids = None
+    if selected_stores and "All Stores" not in selected_stores and not store_df.empty:
+        store_filter_ids, unmatched_names = resolve_store_ids(store_df, selected_stores, debug=False)
+        for nm in unmatched_names:
+            st.warning(f"Store '{nm}' not found")
+        if store_filter_ids is None:
+            st.warning("No valid stores found in selection")
+    
+    # Get custom dates if applicable
+    custom_start = st.session_state.custom_start_date if time_filter == "Custom" else None
+    custom_end = st.session_state.custom_end_date if time_filter == "Custom" else None
+    
+    # --- Data Fetching (Same as legacy) ---
+    with st.spinner(f"Loading mobile dashboard data..."):
+        # Get metrics with proper error handling
         try:
-            from appv38 import get_store_list
-            store_df = get_store_list()
-            if store_df is not None and not store_df.empty:
-                # Filter stores by selected names
-                selected_stores = st.session_state.dashboard_store_filter
-                store_ids = store_df[store_df['name'].isin(selected_stores)]['id'].tolist()
+            metrics = get_dashboard_metrics(time_filter, store_filter_ids, custom_start, custom_end)
+            
+            if not metrics or all(v == 0 for v in [metrics.get('current_sales', 0), metrics.get('current_transactions', 0)]):
+                st.warning("No data found for selected filters")
+                return
+                
         except Exception as e:
-            st.warning(f"⚠️ Could not get store IDs: {e}")
+            st.error(f"Error loading metrics: {e}")
+            return
+        
+        try:
+            # Use the same functions as legacy dashboard
+            sales_cat_df = get_sales_by_category_pie(time_filter, store_filter_ids)
+            inv_cat_df = get_inventory_by_category_pie(store_filter_ids)
+            top_change_df = get_top_products_with_change(time_filter, store_filter_ids)
+            cat_change_df = get_categories_with_change(time_filter, store_filter_ids)
+            daily_trend_df = get_daily_trend(days={"1D":1, "7D":7, "1M":30, "6M":180, "1Y":365}.get(time_filter, 7), store_ids=store_filter_ids)
+            
+        except Exception as e:
+            st.error(f"❌ Error loading dashboard data: {e}")
+            # Provide fallback empty data
+            sales_cat_df = pd.DataFrame()
+            inv_cat_df = pd.DataFrame()
+            top_change_df = pd.DataFrame()
+            cat_change_df = pd.DataFrame()
+            daily_trend_df = pd.DataFrame()
     
-    # Get metrics
-    try:
-        metrics = get_dashboard_metrics(st.session_state.dashboard_time_filter, store_ids)
-    except Exception as e:
-        metrics = {}
-    
-    # Get sales trend data
-    try:
-        sales_df = get_sales_trend_data(st.session_state.dashboard_time_filter, store_ids)
-    except Exception as e:
-        sales_df = pd.DataFrame()
-    
-    # Get category data
-    try:
-        sales_cat_df = get_sales_by_category_data(st.session_state.dashboard_time_filter, store_ids)
-        inv_cat_df = get_inventory_by_category_data(store_ids)
-    except Exception as e:
-        sales_cat_df = pd.DataFrame()
-        inv_cat_df = pd.DataFrame()
-    
-    # Get top products and categories with change data
-    try:
-        top_change_df = get_top_products_with_change(st.session_state.dashboard_time_filter, store_ids)
-        cat_change_df = get_categories_with_change(st.session_state.dashboard_time_filter, store_ids)
-    except Exception as e:
-        top_change_df = pd.DataFrame()
-        cat_change_df = pd.DataFrame()
-    
-    # Render responsive dashboard
+    # Render responsive dashboard with correct data
     MobileDashboard.render_responsive_dashboard(
         metrics=metrics,
-        sales_df=sales_df,
+        sales_df=daily_trend_df,  # Use daily_trend_df instead of sales_df
         sales_cat_df=sales_cat_df,
         inv_cat_df=inv_cat_df,
         top_change_df=top_change_df,
         cat_change_df=cat_change_df,
-        time_filter=st.session_state.dashboard_time_filter,
-        selected_stores=st.session_state.dashboard_store_filter
+        time_filter=time_filter,
+        selected_stores=selected_stores
     )
 
 def get_dashboard_data():
