@@ -3879,105 +3879,143 @@ def render_advanced_analytics():
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("🔍 Data Diagnostic Tool")
-            st.info("📊 Analyze data availability and quality for hidden demand detection")
+            st.subheader("🔍 Advanced Hidden Demand Detection")
+            st.info("📊 Statistical analysis of demand patterns with confidence scoring")
             
             # Configuration controls
             col1_1, col1_2 = st.columns(2)
             with col1_1:
                 lookback_days = st.selectbox("Analysis Period", [7, 14, 30, 60, 90], index=2, key="lookback_days")
             with col1_2:
-                if st.button("🔍 Run Data Diagnostic", type="primary", key="analyze_hidden_demand"):
+                if st.button("🔍 Analyze Hidden Demand", type="primary", key="analyze_hidden_demand"):
                     st.session_state.trigger_hidden_demand_analysis = True
             
             if st.session_state.get('trigger_hidden_demand_analysis', False):
-                with st.spinner("Running data diagnostic analysis..."):
+                with st.spinner("Analyzing demand patterns..."):
                     try:
-                        # Simple diagnostic query to see what data exists
+                        # Working hidden demand detection query
                         sql = """
+                        WITH weekly_sales AS (
+                            SELECT 
+                                p.id as product_id, p.name as product_name, p.category,
+                                t.store_id, s.name as store_name,
+                                DATE_TRUNC('week', t.transaction_time AT TIME ZONE 'Asia/Manila') as week,
+                                SUM(ti.quantity) as weekly_qty
+                            FROM transaction_items ti
+                            JOIN transactions t ON ti.transaction_ref_id = t.ref_id
+                            JOIN products p ON ti.product_id = p.id
+                            JOIN stores s ON t.store_id = s.id
+                            WHERE LOWER(t.transaction_type) = 'sale' 
+                            AND t.is_cancelled = false
+                            AND t.transaction_time >= CURRENT_DATE - INTERVAL %s
+                            GROUP BY 1, 2, 3, 4, 5, 6
+                        ),
+                        
+                        demand_analysis AS (
+                            SELECT 
+                                product_id, product_name, category, store_id, store_name,
+                                AVG(weekly_qty) as avg_weekly_demand,
+                                COUNT(*) as weeks_with_sales,
+                                MAX(week) as last_sale_week,
+                                EXTRACT(WEEK FROM CURRENT_DATE) - EXTRACT(WEEK FROM MAX(week)) as weeks_since_last_sale
+                            FROM weekly_sales
+                            GROUP BY 1, 2, 3, 4, 5
+                            HAVING COUNT(*) >= 2 AND AVG(weekly_qty) >= 1.0
+                        ),
+                        
+                        inventory_correlation AS (
+                            SELECT 
+                                da.*,
+                                COALESCE(i.quantity_on_hand, 0) as current_stock,
+                                -- Hidden demand score calculation
+                                LEAST(100, GREATEST(0,
+                                    (da.avg_weekly_demand * 15) + 
+                                    (CASE WHEN da.weeks_since_last_sale > 2 THEN 25 ELSE 0 END) +
+                                    (CASE WHEN COALESCE(i.quantity_on_hand, 0) = 0 THEN 35 ELSE 0 END) +
+                                    (CASE WHEN COALESCE(i.quantity_on_hand, 0) <= da.avg_weekly_demand THEN 15 ELSE 0 END) +
+                                    (CASE WHEN da.avg_weekly_demand > 3 THEN 10 ELSE 0 END)
+                                )) as hidden_demand_score
+                            FROM demand_analysis da
+                            LEFT JOIN inventory i ON da.product_id = i.product_id AND da.store_id = i.store_id
+                            WHERE da.weeks_since_last_sale >= 1 OR COALESCE(i.quantity_on_hand, 0) = 0
+                        )
+                        
                         SELECT 
-                            COUNT(*) as total_rows,
-                            COUNT(DISTINCT t.ref_id) as unique_transactions,
-                            COUNT(DISTINCT ti.product_id) as unique_products,
-                            COUNT(DISTINCT t.store_id) as unique_stores,
-                            MIN(DATE(t.transaction_time AT TIME ZONE 'Asia/Manila')) as earliest_date,
-                            MAX(DATE(t.transaction_time AT TIME ZONE 'Asia/Manila')) as latest_date,
-                            STRING_AGG(DISTINCT LOWER(t.transaction_type), ', ') as transaction_types,
-                            COUNT(CASE WHEN t.is_cancelled IS NULL THEN 1 END) as null_cancelled,
-                            COUNT(CASE WHEN t.is_cancelled = false THEN 1 END) as false_cancelled,
-                            COUNT(CASE WHEN t.is_cancelled = true THEN 1 END) as true_cancelled
-                        FROM transaction_items ti
-                        JOIN transactions t ON ti.transaction_ref_id = t.ref_id
-                        WHERE t.transaction_time >= CURRENT_DATE - INTERVAL %s
+                            product_name, store_name, category,
+                            ROUND(avg_weekly_demand, 2) as avg_weekly_demand,
+                            weeks_since_last_sale,
+                            current_stock,
+                            ROUND(hidden_demand_score, 1) as hidden_demand_score,
+                            CASE 
+                                WHEN current_stock = 0 AND avg_weekly_demand > 2 THEN 'URGENT_RESTOCK'
+                                WHEN weeks_since_last_sale > 3 AND avg_weekly_demand > 1 THEN 'INVESTIGATE_STOCKOUT'
+                                WHEN hidden_demand_score > 60 THEN 'HIGH_OPPORTUNITY'
+                                WHEN hidden_demand_score > 30 THEN 'MONITOR'
+                                ELSE 'LOW_PRIORITY'
+                            END as recommendation,
+                            CASE 
+                                WHEN current_stock = 0 THEN 'Zero stock - immediate restock needed'
+                                WHEN weeks_since_last_sale > 4 THEN 'Long sales gap - check for supply issues'
+                                WHEN hidden_demand_score > 70 THEN 'Strong hidden demand signal detected'
+                                ELSE 'Monitor inventory levels'
+                            END as insight
+                        FROM inventory_correlation
+                        ORDER BY hidden_demand_score DESC, avg_weekly_demand DESC
+                        LIMIT 50
                         """
                         
                         params = (f"{lookback_days} days",)
                         hidden_demand_df = execute_query_for_dashboard(sql, params)
                         
                         if hidden_demand_df is not None and not hidden_demand_df.empty:
-                            # Display diagnostic results
-                            st.success("✅ Data diagnostic completed successfully!")
+                            # Summary metrics
+                            urgent_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'URGENT_RESTOCK'])
+                            high_opp_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'HIGH_OPPORTUNITY'])
                             
-                            # Get the first (and only) row of diagnostic data
-                            diagnostic_data = hidden_demand_df.iloc[0]
-                            
-                            # Display key metrics
                             col1, col2, col3 = st.columns(3)
                             with col1:
-                                st.metric("📊 Total Rows", f"{diagnostic_data['total_rows']:,}")
-                                st.metric("🛒 Unique Transactions", f"{diagnostic_data['unique_transactions']:,}")
-                            with col2:
-                                st.metric("📦 Unique Products", f"{diagnostic_data['unique_products']:,}")
-                                st.metric("🏪 Unique Stores", f"{diagnostic_data['unique_stores']:,}")
+                                st.metric("🚨 Urgent Restocks", urgent_count)
+                            with col2:  
+                                st.metric("✅ High Opportunities", high_opp_count)
                             with col3:
-                                st.metric("📅 Date Range", f"{diagnostic_data['earliest_date']} to {diagnostic_data['latest_date']}")
+                                avg_score = hidden_demand_df['hidden_demand_score'].mean()
+                                st.metric("📈 Avg Demand Score", f"{avg_score:.1f}")
                             
-                            # Display detailed information
-                            st.subheader("📋 Data Quality Analysis")
+                            # Style the dataframe
+                            def style_score(val):
+                                if val >= 70: return 'background-color: #ff4444; color: white'
+                                elif val >= 50: return 'background-color: #ff8800; color: white'  
+                                elif val >= 30: return 'background-color: #ffaa00; color: black'
+                                else: return ''
                             
-                            col1_info, col2_info = st.columns(2)
-                            with col1_info:
-                                st.markdown("**Transaction Types:**")
-                                st.code(diagnostic_data['transaction_types'])
-                                
-                                st.markdown("**Cancellation Status:**")
-                                st.markdown(f"- NULL cancelled: {diagnostic_data['null_cancelled']:,}")
-                                st.markdown(f"- False cancelled: {diagnostic_data['false_cancelled']:,}")
-                                st.markdown(f"- True cancelled: {diagnostic_data['true_cancelled']:,}")
+                            def style_recommendation(val):
+                                colors = {
+                                    'URGENT_RESTOCK': 'background-color: #ff0000; color: white; font-weight: bold',
+                                    'HIGH_OPPORTUNITY': 'background-color: #ff6600; color: white',
+                                    'INVESTIGATE_STOCKOUT': 'background-color: #ffaa00; color: black',
+                                    'MONITOR': 'background-color: #0066ff; color: white'
+                                }
+                                return colors.get(val, '')
                             
-                            with col2_info:
-                                st.markdown("**Data Availability:**")
-                                if diagnostic_data['total_rows'] > 0:
-                                    st.success("✅ Transaction data available")
-                                else:
-                                    st.error("❌ No transaction data found")
-                                
-                                if diagnostic_data['unique_products'] > 0:
-                                    st.success("✅ Product data available")
-                                else:
-                                    st.error("❌ No product data found")
-                                
-                                if diagnostic_data['unique_stores'] > 0:
-                                    st.success("✅ Store data available")
-                                else:
-                                    st.error("❌ No store data found")
+                            styled_df = hidden_demand_df.style.applymap(
+                                style_score, subset=['hidden_demand_score']
+                            ).applymap(
+                                style_recommendation, subset=['recommendation']
+                            )
                             
-                            # Display raw data
-                            st.subheader("📊 Raw Diagnostic Data")
-                            st.dataframe(hidden_demand_df, use_container_width=True)
+                            st.dataframe(styled_df, use_container_width=True)
                             
                             # Download option
                             csv_data = hidden_demand_df.to_csv(index=False)
                             st.download_button(
-                                "📥 Download Data Diagnostic Report",
+                                "📥 Download Hidden Demand Report",
                                 csv_data,
-                                f"data_diagnostic_{lookback_days}days.csv",
+                                f"hidden_demand_{lookback_days}days.csv",
                                 "text/csv",
                                 use_container_width=True
                             )
                         else:
-                            st.error("❌ No data found in the specified time period")
-                            st.info("💡 Try increasing the analysis period or check database connectivity")
+                            st.info("💡 No hidden demand opportunities detected in the selected period")
                             
                     except Exception as e:
                         st.error(f"Error analyzing hidden demand: {e}")
