@@ -3031,21 +3031,7 @@ def render_dashboard():
                 horizontal=True, key="time_filter_selector"
             )
             
-            # Show time period description
-            dashboard_time_descriptions = {
-                "1D": "Last 1 day (yesterday to today)",
-                "7D": "Current week to date (Monday to yesterday)",
-                "1M": "Current month to date (1st to today)",
-                "3M": "Last 3 months (90 days)",
-                "6M": "Current month to date (1st to today)",
-                "1Y": "Current year to date (Jan 1st to today)",
-                "Custom": "Select custom date range"
-            }
-            
-            selected_dashboard_time = st.session_state.dashboard_time_filter
-            selected_dashboard_desc = dashboard_time_descriptions.get(selected_dashboard_time, "")
-            if selected_dashboard_desc:
-                st.info(f"📅 **{selected_dashboard_time}**: {selected_dashboard_desc}")
+
             
             # Custom date range (only show if Custom is selected)
             if st.session_state.dashboard_time_filter == "Custom":
@@ -3072,13 +3058,7 @@ def render_dashboard():
                     st.error("❌ Start date cannot be after end date!")
                     return
                 
-                # Validate date range is not too large
-                date_diff = (custom_end - custom_start).days
-                if date_diff > 365:
-                    st.warning("⚠️ Date range is very large (>1 year). This may impact performance.")
-                
-                # Show selected date range
-                st.info(f"📅 Custom Date Range: {custom_start.strftime('%B %d, %Y')} to {custom_end.strftime('%B %d, %Y')} ({date_diff + 1} days)")
+
         
         with filter_col2:
             # Middle column - can be used for additional filters or left empty
@@ -3880,9 +3860,7 @@ def get_chart_view_data(time_range, metric_type, granularity, filters, store_fil
     # Time Range Filter - Now using consistent uppercase format
     time_filter = time_range  # No mapping needed since we're using consistent format
     
-    # Debug: Show time filter
-    if st.session_state.get('debug_chart_sql', False):
-        st.write(f"🔍 Debug: Using time filter: '{time_filter}'")
+
     
     # Get intelligent date ranges
     try:
@@ -3890,17 +3868,7 @@ def get_chart_view_data(time_range, metric_type, granularity, filters, store_fil
         current_start = date_range['start_date']
         current_end = date_range['end_date']
         
-        # Debug: Show date range
-        if st.session_state.get('debug_chart_sql', False):
-            st.write(f"🔍 Debug: Date range: {current_start} to {current_end}")
-            
-    except Exception as e:
-        st.error(f"❌ Error getting date range for '{time_filter}': {e}")
-        # Fallback to default 7D range
-        fallback_range = get_intelligent_date_range("7D")
-        current_start = fallback_range['start_date']
-        current_end = fallback_range['end_date']
-        st.warning(f"⚠️ Using fallback date range: {current_start} to {current_end}")
+
     
     # If grouping by week, widen the window to capture full weeks so recent buckets aren't truncated
     if granularity == "Week":
@@ -4042,16 +4010,7 @@ def render_chart_view():
     """Render the enhanced Chart View page with multi-select, live search, and comparison."""
     st.markdown('<div class="main-header"><h1>📈 Chart View</h1><p>Deep dive analytics with interactive visualizations</p></div>', unsafe_allow_html=True)
     
-    # Test chart rendering to ensure Plotly is working
-    try:
-        test_fig = go.Figure()
-        test_fig.add_trace(go.Scatter(x=[1, 2, 3], y=[1, 4, 2], name="Test Chart"))
-        test_fig.update_layout(title="Chart Rendering Test", height=100, showlegend=False)
-        test_fig.update_layout(margin=dict(l=0, r=0, t=30, b=0))
-        st.plotly_chart(test_fig, use_container_width=True, config={'displayModeBar': False})
-    except Exception as e:
-        st.error(f"❌ Chart rendering test failed: {e}")
-        return
+
 
     # --- Session State Initialization ---
     if 'cv_time' not in st.session_state: st.session_state.cv_time = "7D"
@@ -4066,16 +4025,10 @@ def render_chart_view():
             'filters': ['Rockwell'],  # Default to Rockwell store
             'stores': []
         }]
-        st.info("ℹ️ Default comparison set initialized with Rockwell store") 
+ 
 
     # Fetch all possible filter options once
     filter_options = get_filter_options()
-    
-    # Debug: Show filter options
-    if st.session_state.get('debug_chart_sql', False):
-        st.write("🔍 Debug: Available filter options:")
-        st.write(f"  - Stores: {filter_options.get('stores', [])}")
-        st.write(f"  - Categories: {filter_options.get('categories', [])}")
     
     # Ensure we have filter options
     if not filter_options.get('stores'):
@@ -4094,31 +4047,7 @@ def render_chart_view():
     current_time_index = time_ranges.index(st.session_state.cv_time)
     st.session_state.cv_time = st.radio("", time_ranges, index=current_time_index, horizontal=True, key="time_range_selector")
     
-    # Show time period description
-    time_descriptions = {
-        "1D": "Last 1 day (yesterday to today)",
-        "7D": "Current week to date (Monday to yesterday)",
-        "1M": "Current month to date (1st to today)",
-        "3M": "Last 3 months (90 days)",
-        "6M": "Current month to date (1st to today)",
-        "1Y": "Current year to date (Jan 1st to today)"
-    }
-    
-    selected_description = time_descriptions.get(st.session_state.cv_time, "")
-    if selected_description:
-        st.info(f"📅 **{st.session_state.cv_time}**: {selected_description}")
-    
-    # Show actual date range being used
-    try:
-        from datetime import datetime
-        date_range = get_intelligent_date_range(st.session_state.cv_time)
-        start_date = date_range['start_date']
-        end_date = date_range['end_date']
-        days_diff = (end_date - start_date).days
-        
-        st.success(f"📊 **Actual Date Range**: {start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')} ({days_diff + 1} days)")
-    except Exception as e:
-        st.warning(f"⚠️ Could not calculate date range: {e}")
+
     
     # --- Main Controls ---
     st.markdown("### 🎛️ Analytics Controls")
@@ -4133,19 +4062,7 @@ def render_chart_view():
         # Do not set a default index when using a session-state-backed key to avoid Streamlit warning
         st.selectbox("Time Granularity", ["Minute", "Hour", "Day", "Week", "Month"], key="cv_granularity")
         
-        # Show granularity description
-        granularity_descriptions = {
-            "Minute": "Data grouped by minute (for detailed analysis)",
-            "Hour": "Data grouped by hour (for hourly trends)",
-            "Day": "Data grouped by day (for daily patterns)",
-            "Week": "Data grouped by week (for weekly trends)",
-            "Month": "Data grouped by month (for monthly patterns)"
-        }
-        
-        selected_granularity = st.session_state.get("cv_granularity", "Day")
-        selected_gran_desc = granularity_descriptions.get(selected_granularity, "")
-        if selected_gran_desc:
-            st.info(f"⏰ **{selected_granularity}**: {selected_gran_desc}")
+
 
     st.markdown('</div>', unsafe_allow_html=True)  # Close filter-container
     
@@ -4191,7 +4108,7 @@ def render_chart_view():
                         default_filters = ['Rockwell']
                         st.session_state.comparison_sets[i]['filters'] = default_filters
                         metric_filters.extend(default_filters)
-                        st.info(f"ℹ️ Using default filter: {default_filters}")
+
             
             elif st.session_state.cv_metric_type == "Product Categories":
                 category_options = ["All"] + filter_options["categories"]
@@ -4248,23 +4165,13 @@ def render_chart_view():
                         st.session_state.cv_granularity, metric_filters, selected_stores
                     )
                     
-                    # Debug: Show data subset info
-                    if st.session_state.get('debug_chart_sql', False):
-                        st.write(f"🔍 Debug: Data subset for {label}")
-                        st.write(f"  - Shape: {data_subset.shape if data_subset is not None else 'None'}")
-                        st.write(f"  - Empty: {data_subset.empty if data_subset is not None else 'None'}")
-                        if data_subset is not None and not data_subset.empty:
-                            st.write(f"  - Columns: {list(data_subset.columns)}")
-                            st.write(f"  - Sample data:")
-                            st.dataframe(data_subset.head(3))
-                    
-                    if data_subset is not None and not data_subset.empty:
+                                        if data_subset is not None and not data_subset.empty:
                         data_subset['set_index'] = i
                         all_data_frames.append(data_subset)
                     else:
                         st.warning(f"⚠️ No data returned for {label} with filters: {metric_filters}")
-            else:
-                st.warning(f"⚠️ No metric filters selected for {label}")
+                else:
+                    st.warning(f"⚠️ No metric filters selected for {label}")
 
     if st.button("🆚 Add Comparison"):
         st.session_state.comparison_sets.append({})
@@ -4325,14 +4232,7 @@ def render_chart_view():
         st.write("🔍 Revenue column sample:", data['total_revenue'].head())
         return
     
-    # Debug: Show data info
-    if st.session_state.get('debug_chart_sql', False):
-        st.write("🔍 Debug: Data shape:", data.shape)
-        st.write("🔍 Debug: Data columns:", list(data.columns))
-        st.write("🔍 Debug: Data sample:")
-        st.dataframe(data.head())
-        st.write("🔍 Debug: Data types:")
-        st.write(data.dtypes)
+
 
     # Backfill weekly gaps with zeros so single-store weekly selections always render
     if st.session_state.cv_granularity == "Week":
@@ -4373,12 +4273,7 @@ def render_chart_view():
     total_visible_metric = data['total_revenue'].sum()
     st.metric(f"Total Value (Visible in Chart)", f"₱{total_visible_metric:,.0f}")
 
-    # Debug: Show chart creation info
-    if st.session_state.get('debug_chart_sql', False):
-        st.write("🔍 Debug: Creating chart with data shape:", data.shape)
-        st.write("🔍 Debug: Unique series names:", sorted(data['series_name'].unique()))
-        st.write("🔍 Debug: Date range:", data['date'].min(), "to", data['date'].max())
-        st.write("🔍 Debug: Revenue range:", data['total_revenue'].min(), "to", data['total_revenue'].max())
+
 
     fig = go.Figure()
 
@@ -4396,10 +4291,7 @@ def render_chart_view():
         st.session_state.cv_metric_type == "Product Categories" and num_stores_selected == 1
     )
     
-    if st.session_state.get('debug_chart_sql', False):
-        st.write("🔍 Debug: Primary set:", primary_set)
-        st.write("🔍 Debug: Stores in primary set:", stores_in_primary_set)
-        st.write("🔍 Debug: Color by category:", color_by_category)
+
 
     # Define color maps
     store_color_map = {'Rockwell': '#E74C3C', 'Greenhills': '#2ECC71', 'Magnolia': '#F1C40F', 'North Edsa': '#3498DB', 'Fairview': '#9B59B6'}
@@ -4427,16 +4319,8 @@ def render_chart_view():
     style_palette = [{'dash': 'solid', 'width': 2.5}, {'dash': 'dash', 'width': 2.0}, {'dash': 'dot', 'width': 2.0}, {'dash': 'dashdot', 'width': 2.0}]
     entity_style_map = {}
     
-    # Debug: Show trace creation info
-    if st.session_state.get('debug_chart_sql', False):
-        st.write("🔍 Debug: Adding traces for series:", sorted(data['series_name'].unique()))
-    
     for series_name in sorted(data['series_name'].unique()):
         series_df = data[data['series_name'] == series_name]
-        
-        # Debug: Show series data
-        if st.session_state.get('debug_chart_sql', False):
-            st.write(f"🔍 Debug: Series '{series_name}' - Shape: {series_df.shape}, Revenue sum: {series_df['total_revenue'].sum():,.0f}")
         
         # Ensure series_name is a string
         if pd.isna(series_name) or series_name is None:
@@ -4493,44 +4377,12 @@ def render_chart_view():
             fill='tozeroy', fillcolor=fillcolor, mode='lines'
         ))
     
-    # Debug: Show final figure info
-    if st.session_state.get('debug_chart_sql', False):
-        st.write(f"🔍 Debug: Figure created with {len(fig.data)} traces")
-        st.write("🔍 Debug: Figure layout:", fig.layout)
-    
     # Validate that traces were added
     if len(fig.data) == 0:
         st.error("❌ No chart traces were created!")
         st.write("🔍 This usually means the data is empty or malformed")
         st.write("📊 Showing raw data for debugging:")
         st.dataframe(data, use_container_width=True)
-        
-        # Try to create a simple fallback chart
-        st.write("🔄 Attempting to create fallback chart...")
-        try:
-            fallback_fig = go.Figure()
-            # Use the first few rows of data if available
-            if not data.empty:
-                sample_data = data.head(10)
-                fallback_fig.add_trace(go.Scatter(
-                    x=sample_data['date'], 
-                    y=sample_data['total_revenue'], 
-                    name="Fallback Data",
-                    mode='lines+markers'
-                ))
-                fallback_fig.update_layout(
-                    title="Fallback Chart (Limited Data)",
-                    xaxis_title="Date",
-                    yaxis_title="Revenue",
-                    height=300
-                )
-                st.plotly_chart(fallback_fig, use_container_width=True)
-                st.info("ℹ️ Fallback chart created with limited data")
-            else:
-                st.error("❌ No data available for fallback chart")
-        except Exception as fallback_e:
-            st.error(f"❌ Fallback chart also failed: {fallback_e}")
-        
         return
 
     fig.update_layout(
@@ -4542,25 +4394,9 @@ def render_chart_view():
         hoverlabel=dict(bgcolor="#2A2E39", font_size=14)
     )
     
-    # Debug: Show final figure before rendering
-    if st.session_state.get('debug_chart_sql', False):
-        st.write("🔍 Debug: Final figure data traces:", len(fig.data))
-        st.write("🔍 Debug: Figure ready for rendering")
-    
     # Render the chart with error handling
     try:
-        # First, test with a simple chart to ensure Plotly is working
-        if st.session_state.get('debug_chart_sql', False):
-            st.write("🔍 Debug: Testing simple chart first...")
-            test_fig = go.Figure()
-            test_fig.add_trace(go.Scatter(x=[1, 2, 3], y=[1, 4, 2], name="Test"))
-            test_fig.update_layout(title="Test Chart", height=200)
-            st.plotly_chart(test_fig, use_container_width=True)
-            st.write("🔍 Debug: Test chart rendered successfully")
-        
-        # Now render the actual chart
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': True})
-        st.success("✅ Chart rendered successfully!")
     except Exception as e:
         st.error(f"❌ Error rendering chart: {e}")
         st.write("🔍 Debug: Chart data summary:")
