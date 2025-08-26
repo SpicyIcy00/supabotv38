@@ -10,6 +10,8 @@ from supabot.ui.styles.css import DashboardStyles
 # Import mobile components
 from supabot.ui.components.mobile_detection import MobileDetection
 from supabot.ui.components.mobile_dashboard_renderer import MobileDashboardRenderer
+from supabot.ui.components.mobile_dashboard_v2 import MobileDashboardV2
+from supabot.ui.styles.mobile_css_v2 import MobileStylesV2
 
 # Import page renderers from the original app with error handling
 try:
@@ -75,7 +77,7 @@ except ImportError as e:
     
     def render_dashboard():
         """Fallback dashboard renderer."""
-        MobileDashboardRenderer.render_mobile_dashboard()
+        MobileDashboardV2.render_mobile_dashboard()
     
     def render_product_sales_report():
         """Fallback product sales report."""
@@ -137,6 +139,9 @@ def main():
         settings.configure_streamlit()
         DashboardStyles.load_all_styles()
         
+        # Load mobile styles V2 for exact visual identity preservation
+        MobileStylesV2.load_all_mobile_styles_v2()
+        
         # Initialize session state
         init_session_state()
         
@@ -179,9 +184,9 @@ def main():
         
         # Conditional page mapping based on device type
         if MobileDetection.is_mobile():
-            # Mobile page map - use mobile dashboard for main dashboard
+            # Mobile page map - use mobile dashboard V2 for exact layout specifications
             page_map = {
-                "Dashboard": MobileDashboardRenderer.render_mobile_dashboard,
+                "Dashboard": MobileDashboardV2.render_mobile_dashboard,
                 "Product Sales Report": render_product_sales_report,
                 "Chart View": render_chart_view,
                 "AI Assistant": render_chat,
