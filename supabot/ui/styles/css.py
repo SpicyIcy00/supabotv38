@@ -124,6 +124,13 @@ class DashboardStyles:
         """Load all CSS styles for the application."""
         DashboardStyles.load_custom_dark_css()
         DashboardStyles.load_dashboard_css()
+        
+        # Load mobile styles if available
+        try:
+            from .mobile_css import MobileStyles
+            MobileStyles.load_all_mobile_styles()
+        except ImportError:
+            pass  # Mobile styles not available
 
 
 # Legacy function for compatibility

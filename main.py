@@ -54,7 +54,7 @@ def main():
         
         # Page navigation with error handling
         page_map = {
-            "Dashboard": render_dashboard,
+            "Dashboard": render_dashboard,  # Original desktop dashboard
             "Product Sales Report": render_product_sales_report,
             "Chart View": render_chart_view,
             "AI Assistant": render_chat,
