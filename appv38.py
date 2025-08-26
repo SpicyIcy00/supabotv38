@@ -5305,3 +5305,192 @@ def enhance_briefing_with_llm(md_text: str) -> str:
 def send_briefing_email(md_text: str):
     # Stub for n8n/Gmail webhook
     pass
+
+# --- PRODUCT SALES REPORT ---
+
+def render_product_sales_report():
+    """Render the Product Sales Report."""
+    st.markdown('<div class="main-header"><h1>📊 Product Sales Report</h1><p>Advanced sales analytics</p></div>', unsafe_allow_html=True)
+    
+    # Get store list
+    store_df = get_store_list()
+    if store_df is None or store_df.empty:
+        st.error("Could not fetch store list. Check database connection.")
+        return
+    
+    store_options = {row["name"]: row["id"] for row in store_df.iter_rows(named=True)}
+    store_names = list(store_options.keys())
+    
+    st.markdown("### 🎛️ Report Configuration")
+    st.markdown('<div class="filter-container">', unsafe_allow_html=True)
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        primary_store = st.selectbox("Primary Store", store_names, index=0)
+    with col2:
+        comparison_stores = [s for s in store_names if s != primary_store]
+        comparison_store = st.selectbox("Comparison Store", comparison_stores, index=0) if comparison_stores else primary_store
+    with col3:
+        start_date = st.date_input("Start Date", date.today() - timedelta(days=7))
+    with col4:
+        end_date = st.date_input("End Date", date.today())
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    if st.button("🚀 Generate Report", type="primary", use_container_width=True):
+        if start_date > end_date:
+            st.error("Start date cannot be after end date")
+            return
+        
+        primary_id = store_options[primary_store]
+        comparison_id = store_options[comparison_store]
+        
+        with st.spinner("⚡ Processing..."):
+            # Get sales data
+            sql = """
+            WITH sales_data AS (
+                SELECT 
+                    p.name AS product_name,
+                    p.sku, p.id AS product_id, p.barcode, p.category,
+                    SUM(ti.quantity) AS quantity_sold,
+                    SUM(ti.item_total) AS total_revenue
+                FROM transaction_items ti
+                JOIN transactions t ON ti.transaction_ref_id = t.ref_id
+                JOIN products p ON ti.product_id = p.id
+                WHERE t.store_id = %s
+                  AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') BETWEEN %s AND %s
+                  AND LOWER(t.transaction_type) = 'sale'
+                  AND COALESCE(t.is_cancelled, false) = false
+                GROUP BY p.name, p.sku, p.id, p.barcode, p.category
+            ),
+            inventory_primary AS (
+                SELECT product_id, quantity_on_hand AS primary_inventory FROM inventory WHERE store_id = %s
+            ),
+            inventory_comparison AS (
+                SELECT product_id, quantity_on_hand AS comparison_inventory FROM inventory WHERE store_id = %s
+            )
+            SELECT sd.*, COALESCE(ip.primary_inventory, 0) AS primary_store_inventory,
+                   COALESCE(ic.comparison_inventory, 0) AS comparison_store_inventory
+            FROM sales_data sd
+            LEFT JOIN inventory_primary ip ON sd.product_id = ip.product_id
+            LEFT JOIN inventory_comparison ic ON sd.product_id = ic.product_id
+            ORDER BY sd.category, sd.quantity_sold DESC;
+            """
+            
+            df = execute_query_for_dashboard(sql, params=[primary_id, str(start_date), str(end_date), primary_id, comparison_id])
+            
+            if df is None or df.empty:
+                st.warning("No sales data found for the selected criteria")
+                return
+            
+            st.session_state["report_df"] = df
+            st.session_state["report_params"] = {
+                "primary_store": primary_store,
+                "comparison_store": comparison_store,
+                "start_date": start_date,
+                "end_date": end_date,
+            }
+        st.success(f"✅ Report generated with {len(df)} products!")
+    
+    if "report_df" in st.session_state:
+        df = st.session_state["report_df"]
+        params = st.session_state["report_params"]
+        
+        st.markdown("---")
+        st.subheader("📈 Product Sales Analysis")
+        
+        head1, head2 = st.columns([3, 1])
+        with head1:
+            st.markdown(f"**Primary:** `{params['primary_store']}` | **Comparison:** `{params['comparison_store']}` | **Period:** `{params['start_date']}` to `{params['end_date']}`")
+        with head2:
+            csv = df.to_csv(index=False)
+            st.download_button(
+                "📥 Download CSV",
+                csv,
+                f"{params['primary_store']}_Sales_{params['start_date']}.csv",
+                "text/csv",
+                use_container_width=True,
+            )
+        
+        # Display by category
+        for category in sorted(df["category"].unique()):
+            category_df = df[df["category"] == category]
+            with st.expander(f"📦 {category} ({len(category_df)} products)", expanded=True):
+                st.dataframe(
+                    category_df[["product_name", "sku", "product_id", "quantity_sold", "primary_store_inventory", "comparison_store_inventory"]],
+                    column_config={
+                        "product_name": st.column_config.TextColumn("Product Name", width="large"),
+                        "sku": st.column_config.TextColumn("SKU", width="small"),
+                        "product_id": st.column_config.TextColumn("Product ID", width="small"),
+                        "quantity_sold": st.column_config.NumberColumn("Quantity", format="%d"),
+                        "primary_store_inventory": st.column_config.NumberColumn(f"{params['primary_store']} Stock", format="%d"),
+                        "comparison_store_inventory": st.column_config.NumberColumn(f"{params['comparison_store']} Stock", format="%d"),
+                    },
+                    hide_index=True,
+                    use_container_width=True,
+                )
+
+# --- SETTINGS PAGE ---
+
+def render_settings():
+    """Render the Settings page."""
+    st.markdown('<div class="main-header"><h1>⚙️ Settings</h1><p>Manage your dashboard</p></div>', unsafe_allow_html=True)
+    
+    # Configuration Status
+    st.subheader("🔧 Configuration Status")
+    
+    # Check database connection
+    db_conn = create_db_connection()
+    if db_conn:
+        st.success("✅ Database connection successful")
+        db_conn.close()
+    else:
+        st.error("❌ Database connection failed")
+        st.info("Add your database credentials to .streamlit/secrets.toml")
+    
+    # Check API keys
+    claude_client = get_claude_client()
+    if claude_client:
+        st.success("✅ Claude API key configured")
+    else:
+        st.error("❌ Claude API key missing")
+        st.info("Add your Anthropic API key to .streamlit/secrets.toml")
+    
+    # Debug Mode Toggle
+    st.subheader("🔍 Debug Settings")
+    debug_mode = st.checkbox(
+        "Enable Debug Mode",
+        value=st.session_state.get('debug_mode', False),
+        help="Show detailed debug information on the dashboard including date ranges, store filters, and data availability"
+    )
+    st.session_state.debug_mode = debug_mode
+    
+    if debug_mode:
+        st.success("✅ Debug mode enabled - detailed information will be shown on the dashboard")
+    else:
+        st.info("Debug mode disabled - dashboard will show standard interface")
+    
+    st.subheader("🛠️ Actions")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔄 Refresh Cache"):
+            st.cache_data.clear()
+            st.success("Cache refreshed!")
+            st.rerun()
+    with col2:
+        if st.button("🔄 Restart App"):
+            st.rerun()
+
+# --- AI INTELLIGENCE HUB ---
+
+def render_ai_intelligence_hub():
+    """Render the AI Intelligence Hub page."""
+    st.markdown('<div class="main-header"><h1>🧠 AI Intelligence Hub</h1><p>AI-powered business insights</p></div>', unsafe_allow_html=True)
+    
+    st.info("AI Intelligence Hub is under development. Check back soon for advanced AI-powered analytics!")
+    
+    # Placeholder for future AI features
+    st.subheader("🚀 Coming Soon")
+    st.write("- Automated weekly performance reviews")
+    st.write("- Predictive analytics")
+    st.write("- Natural language query interface")
+    st.write("- Intelligent anomaly detection")
