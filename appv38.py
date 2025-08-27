@@ -3842,7 +3842,8 @@ def generate_ai_intelligence_summary():
     except Exception as e:
         return f"Error generating AI intelligence summary: {e}"
 
-
+@st.cache_data(ttl=3600)
+def detect_hidden_demand_advanced(lookback_days=30):
    sql = """
    WITH weekly_sales AS (
        SELECT 
@@ -3882,24 +3883,25 @@ def generate_ai_intelligence_summary():
        LEAST(100, GREATEST(0, 
            (da.avg_weekly_demand * 20) + 
            (CASE WHEN da.weeks_since_last_sale > 2 THEN 30 ELSE 0 END) +
-           (CASE WHEN COALESCE(i.quantity_on_hand, 0) as current_stock,
-           LEAST(100, GREATEST(0, 
-               (da.avg_weekly_demand * 20) + 
-               (CASE WHEN da.weeks_since_last_sale > 2 THEN 30 ELSE 0 END) +
-               (CASE WHEN COALESCE(i.quantity_on_hand, 0) = 0 THEN 35 ELSE 0 END) +
-               (CASE WHEN COALESCE(i.quantity_on_hand, 0) <= da.avg_weekly_demand THEN 15 ELSE 0 END)
-           )) as hidden_demand_score,
-           CASE 
-               WHEN COALESCE(i.quantity_on_hand, 0) = 0 AND da.avg_weekly_demand > 2 THEN 'URGENT_RESTOCK'
-               WHEN da.weeks_since_last_sale > 3 THEN 'INVESTIGATE_STOCKOUT'
-               ELSE 'MONITOR'
-           END as recommendation
-       FROM demand_analysis da
-       LEFT JOIN inventory i ON da.product_id = i.product_id AND da.store_id = i.store_id
-       WHERE da.weeks_since_last_sale >= 1
-       ORDER BY hidden_demand_score DESC
-       LIMIT 50
-       # Advanced Analytics Page
+           (CASE WHEN COALESCE(i.quantity_on_hand, 0) = 0 THEN 35 ELSE 0 END) +
+           (CASE WHEN COALESCE(i.quantity_on_hand, 0) <= da.avg_weekly_demand THEN 15 ELSE 0 END)
+       )) as hidden_demand_score,
+       CASE 
+           WHEN COALESCE(i.quantity_on_hand, 0) = 0 AND da.avg_weekly_demand > 2 THEN 'URGENT_RESTOCK'
+           WHEN da.weeks_since_last_sale > 3 THEN 'INVESTIGATE_STOCKOUT'
+           ELSE 'MONITOR'
+       END as recommendation
+   FROM demand_analysis da
+   LEFT JOIN inventory i ON da.product_id = i.product_id AND da.store_id = i.store_id
+   WHERE da.weeks_since_last_sale >= 1
+   ORDER BY hidden_demand_score DESC
+   LIMIT 50
+   """
+   
+   return execute_query_for_dashboard(sql, (f"{lookback_days} days",))
+
+
+# Advanced Analytics Page
 def render_advanced_analytics():
     """Render the Advanced Analytics page with comprehensive analytics engines."""
     st.markdown('<div class="main-header"><h1>🔬 Advanced Analytics</h1><p>Comprehensive business intelligence powered by AI and predictive analytics</p></div>', unsafe_allow_html=True)
