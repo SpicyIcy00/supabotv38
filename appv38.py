@@ -3842,7 +3842,64 @@ def generate_ai_intelligence_summary():
     except Exception as e:
         return f"Error generating AI intelligence summary: {e}"
 
-# Advanced Analytics Page
+
+   sql = """
+   WITH weekly_sales AS (
+       SELECT 
+           p.name as product_name,
+           s.name as store_name,
+           p.category,
+           DATE_TRUNC('week', t.transaction_time AT TIME ZONE 'Asia/Manila') as week,
+           SUM(ti.quantity) as weekly_qty,
+           p.id as product_id,
+           t.store_id
+       FROM transaction_items ti
+       JOIN transactions t ON ti.transaction_ref_id = t.ref_id
+       JOIN products p ON ti.product_id = p.id
+       JOIN stores s ON t.store_id = s.id
+       WHERE LOWER(t.transaction_type) = 'sale' 
+       AND t.is_cancelled = false
+       AND t.transaction_time >= CURRENT_DATE - INTERVAL %s
+       GROUP BY p.name, s.name, p.category, week, p.id, t.store_id
+   ),
+   demand_analysis AS (
+       SELECT 
+           product_name, store_name, category, product_id, store_id,
+           AVG(weekly_qty) as avg_weekly_demand,
+           COUNT(*) as weeks_with_sales,
+           EXTRACT(WEEK FROM CURRENT_DATE) - EXTRACT(WEEK FROM MAX(week)) as weeks_since_last_sale
+       FROM weekly_sales
+       GROUP BY product_name, store_name, category, product_id, store_id
+       HAVING AVG(weekly_qty) >= 1.0
+   )
+   SELECT 
+       da.product_name,
+       da.store_name,
+       da.category,
+       ROUND(da.avg_weekly_demand, 2) as avg_weekly_demand,
+       da.weeks_since_last_sale,
+       COALESCE(i.quantity_on_hand, 0) as current_stock,
+       LEAST(100, GREATEST(0, 
+           (da.avg_weekly_demand * 20) + 
+           (CASE WHEN da.weeks_since_last_sale > 2 THEN 30 ELSE 0 END) +
+           (CASE WHEN COALESCE(i.quantity_on_hand, 0) as current_stock,
+           LEAST(100, GREATEST(0, 
+               (da.avg_weekly_demand * 20) + 
+               (CASE WHEN da.weeks_since_last_sale > 2 THEN 30 ELSE 0 END) +
+               (CASE WHEN COALESCE(i.quantity_on_hand, 0) = 0 THEN 35 ELSE 0 END) +
+               (CASE WHEN COALESCE(i.quantity_on_hand, 0) <= da.avg_weekly_demand THEN 15 ELSE 0 END)
+           )) as hidden_demand_score,
+           CASE 
+               WHEN COALESCE(i.quantity_on_hand, 0) = 0 AND da.avg_weekly_demand > 2 THEN 'URGENT_RESTOCK'
+               WHEN da.weeks_since_last_sale > 3 THEN 'INVESTIGATE_STOCKOUT'
+               ELSE 'MONITOR'
+           END as recommendation
+       FROM demand_analysis da
+       LEFT JOIN inventory i ON da.product_id = i.product_id AND da.store_id = i.store_id
+       WHERE da.weeks_since_last_sale >= 1
+       ORDER BY hidden_demand_score DESC
+       LIMIT 50
+       # Advanced Analytics Page
 def render_advanced_analytics():
     """Render the Advanced Analytics page with comprehensive analytics engines."""
     st.markdown('<div class="main-header"><h1>🔬 Advanced Analytics</h1><p>Comprehensive business intelligence powered by AI and predictive analytics</p></div>', unsafe_allow_html=True)
@@ -3897,10 +3954,13 @@ def render_advanced_analytics():
                         sql = """
                         WITH weekly_sales AS (
                             SELECT 
-                                p.id as product_id, p.name as product_name, p.category,
-                                t.store_id, s.name as store_name,
+                                p.name as product_name,
+                                s.name as store_name,
+                                p.category,
                                 DATE_TRUNC('week', t.transaction_time AT TIME ZONE 'Asia/Manila') as week,
-                                SUM(ti.quantity) as weekly_qty
+                                SUM(ti.quantity) as weekly_qty,
+                                p.id as product_id,
+                                t.store_id
                             FROM transaction_items ti
                             JOIN transactions t ON ti.transaction_ref_id = t.ref_id
                             JOIN products p ON ti.product_id = p.id
@@ -3908,59 +3968,40 @@ def render_advanced_analytics():
                             WHERE LOWER(t.transaction_type) = 'sale' 
                             AND t.is_cancelled = false
                             AND t.transaction_time >= CURRENT_DATE - INTERVAL %s
-                            GROUP BY 1, 2, 3, 4, 5, 6
+                            GROUP BY p.name, s.name, p.category, week, p.id, t.store_id
                         ),
-                        
                         demand_analysis AS (
                             SELECT 
-                                product_id, product_name, category, store_id, store_name,
+                                product_name, store_name, category, product_id, store_id,
                                 AVG(weekly_qty) as avg_weekly_demand,
                                 COUNT(*) as weeks_with_sales,
-                                MAX(week) as last_sale_week,
                                 EXTRACT(WEEK FROM CURRENT_DATE) - EXTRACT(WEEK FROM MAX(week)) as weeks_since_last_sale
                             FROM weekly_sales
-                            GROUP BY 1, 2, 3, 4, 5
-                            HAVING COUNT(*) >= 2 AND AVG(weekly_qty) >= 1.0
-                        ),
-                        
-                        inventory_correlation AS (
-                            SELECT 
-                                da.*,
-                                COALESCE(i.quantity_on_hand, 0) as current_stock,
-                                -- Hidden demand score calculation
-                                LEAST(100, GREATEST(0,
-                                    (da.avg_weekly_demand * 15) + 
-                                    (CASE WHEN da.weeks_since_last_sale > 2 THEN 25 ELSE 0 END) +
-                                    (CASE WHEN COALESCE(i.quantity_on_hand, 0) = 0 THEN 35 ELSE 0 END) +
-                                    (CASE WHEN COALESCE(i.quantity_on_hand, 0) <= da.avg_weekly_demand THEN 15 ELSE 0 END) +
-                                    (CASE WHEN da.avg_weekly_demand > 3 THEN 10 ELSE 0 END)
-                                )) as hidden_demand_score
-                            FROM demand_analysis da
-                            LEFT JOIN inventory i ON da.product_id = i.product_id AND da.store_id = i.store_id
-                            WHERE da.weeks_since_last_sale >= 1 OR COALESCE(i.quantity_on_hand, 0) = 0
+                            GROUP BY product_name, store_name, category, product_id, store_id
+                            HAVING AVG(weekly_qty) >= 1.0
                         )
-                        
                         SELECT 
-                            product_name, store_name, category,
-                            ROUND(avg_weekly_demand, 2) as avg_weekly_demand,
-                            weeks_since_last_sale,
-                            current_stock,
-                            ROUND(hidden_demand_score, 1) as hidden_demand_score,
+                            da.product_name,
+                            da.store_name,
+                            da.category,
+                            ROUND(da.avg_weekly_demand, 2) as avg_weekly_demand,
+                            da.weeks_since_last_sale,
+                            COALESCE(i.quantity_on_hand, 0) as current_stock,
+                            LEAST(100, GREATEST(0, 
+                                (da.avg_weekly_demand * 20) + 
+                                (CASE WHEN da.weeks_since_last_sale > 2 THEN 30 ELSE 0 END) +
+                                (CASE WHEN COALESCE(i.quantity_on_hand, 0) = 0 THEN 35 ELSE 0 END) +
+                                (CASE WHEN COALESCE(i.quantity_on_hand, 0) <= da.avg_weekly_demand THEN 15 ELSE 0 END)
+                            )) as hidden_demand_score,
                             CASE 
-                                WHEN current_stock = 0 AND avg_weekly_demand > 2 THEN 'URGENT_RESTOCK'
-                                WHEN weeks_since_last_sale > 3 AND avg_weekly_demand > 1 THEN 'INVESTIGATE_STOCKOUT'
-                                WHEN hidden_demand_score > 60 THEN 'HIGH_OPPORTUNITY'
-                                WHEN hidden_demand_score > 30 THEN 'MONITOR'
-                                ELSE 'LOW_PRIORITY'
-                            END as recommendation,
-                            CASE 
-                                WHEN current_stock = 0 THEN 'Zero stock - immediate restock needed'
-                                WHEN weeks_since_last_sale > 4 THEN 'Long sales gap - check for supply issues'
-                                WHEN hidden_demand_score > 70 THEN 'Strong hidden demand signal detected'
-                                ELSE 'Monitor inventory levels'
-                            END as insight
-                        FROM inventory_correlation
-                        ORDER BY hidden_demand_score DESC, avg_weekly_demand DESC
+                                WHEN COALESCE(i.quantity_on_hand, 0) = 0 AND da.avg_weekly_demand > 2 THEN 'URGENT_RESTOCK'
+                                WHEN da.weeks_since_last_sale > 3 THEN 'INVESTIGATE_STOCKOUT'
+                                ELSE 'MONITOR'
+                            END as recommendation
+                        FROM demand_analysis da
+                        LEFT JOIN inventory i ON da.product_id = i.product_id AND da.store_id = i.store_id
+                        WHERE da.weeks_since_last_sale >= 1
+                        ORDER BY hidden_demand_score DESC
                         LIMIT 50
                         """
                         
@@ -3970,13 +4011,13 @@ def render_advanced_analytics():
                         if hidden_demand_df is not None and not hidden_demand_df.empty:
                             # Summary metrics
                             urgent_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'URGENT_RESTOCK'])
-                            high_opp_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'HIGH_OPPORTUNITY'])
+                            investigate_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'INVESTIGATE_STOCKOUT'])
                             
                             col1, col2, col3 = st.columns(3)
                             with col1:
                                 st.metric("🚨 Urgent Restocks", urgent_count)
                             with col2:  
-                                st.metric("✅ High Opportunities", high_opp_count)
+                                st.metric("🔍 Investigate Stockouts", investigate_count)
                             with col3:
                                 avg_score = hidden_demand_df['hidden_demand_score'].mean()
                                 st.metric("📈 Avg Demand Score", f"{avg_score:.1f}")
@@ -3991,7 +4032,6 @@ def render_advanced_analytics():
                             def style_recommendation(val):
                                 colors = {
                                     'URGENT_RESTOCK': 'background-color: #ff0000; color: white; font-weight: bold',
-                                    'HIGH_OPPORTUNITY': 'background-color: #ff6600; color: white',
                                     'INVESTIGATE_STOCKOUT': 'background-color: #ffaa00; color: black',
                                     'MONITOR': 'background-color: #0066ff; color: white'
                                 }
