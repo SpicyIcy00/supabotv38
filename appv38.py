@@ -2686,15 +2686,8 @@ def get_dashboard_highlights(metrics, top_sellers_df, time_filter):
     
     return highlights
 
-def get_dashboard_fad_stays(time_filter="7D", store_filter_ids=None):
-    """Get trending products (simplified version)"""
-    top_sellers = get_dashboard_top_sellers(time_filter, store_filter_ids)
-    
-    if top_sellers.empty:
-        return pd.DataFrame(), pd.DataFrame()
-    
-    # Split into gainers and losers based on revenue
-    gainers = top_sellers.head(3).copy()
+def generate_dashboard_ai_insights(metrics, sales_cat_df, top_sellers_df, time_filter, store_filter_ids=None):
+
     gainers['revenue_change'] = gainers['total_revenue'] * 0.15  # Mock positive trend
     
     losers = top_sellers.tail(3).copy()
@@ -3873,8 +3866,6 @@ def render_advanced_analytics():
     
     # Tab 1: Demand Analytics Engine
     with tab1:
-        st.markdown("### 🔍 Demand Analytics Engine")
-        st.caption("Hidden demand detection and stockout prediction")
         
         col1, col2 = st.columns(2)
         
@@ -3893,84 +3884,42 @@ def render_advanced_analytics():
             if st.session_state.get('trigger_hidden_demand_analysis', False):
                 with st.spinner("Analyzing demand patterns..."):
                     try:
-                        # Working hidden demand detection query
-                        sql = """
-                        WITH weekly_sales AS (
-                            SELECT 
-                                p.id as product_id, p.name as product_name, p.category,
-                                t.store_id, s.name as store_name,
-                                DATE_TRUNC('week', t.transaction_time AT TIME ZONE 'Asia/Manila') as week,
-                                SUM(ti.quantity) as weekly_qty
-                            FROM transaction_items ti
-                            JOIN transactions t ON ti.transaction_ref_id = t.ref_id
-                            JOIN products p ON ti.product_id = p.id
-                            JOIN stores s ON t.store_id = s.id
-                            WHERE LOWER(t.transaction_type) = 'sale' 
-                            AND t.is_cancelled = false
-                            AND t.transaction_time >= CURRENT_DATE - INTERVAL %s
-                            GROUP BY 1, 2, 3, 4, 5, 6
-                        ),
+                        # Use the new robust hidden demand function
+                        hidden_demand_df = get_hidden_demand()
                         
-                        demand_analysis AS (
-                            SELECT 
-                                product_id, product_name, category, store_id, store_name,
-                                AVG(weekly_qty) as avg_weekly_demand,
-                                COUNT(*) as weeks_with_sales,
-                                MAX(week) as last_sale_week,
-                                EXTRACT(WEEK FROM CURRENT_DATE) - EXTRACT(WEEK FROM MAX(week)) as weeks_since_last_sale
-                            FROM weekly_sales
-                            GROUP BY 1, 2, 3, 4, 5
-                            HAVING COUNT(*) >= 2 AND AVG(weekly_qty) >= 1.0
-                        ),
-                        
-                        inventory_correlation AS (
-                            SELECT 
-                                da.*,
-                                COALESCE(i.quantity_on_hand, 0) as current_stock,
-                                -- Hidden demand score calculation
-                                LEAST(100, GREATEST(0,
-                                    (da.avg_weekly_demand * 15) + 
-                                    (CASE WHEN da.weeks_since_last_sale > 2 THEN 25 ELSE 0 END) +
-                                    (CASE WHEN COALESCE(i.quantity_on_hand, 0) = 0 THEN 35 ELSE 0 END) +
-                                    (CASE WHEN COALESCE(i.quantity_on_hand, 0) <= da.avg_weekly_demand THEN 15 ELSE 0 END) +
-                                    (CASE WHEN da.avg_weekly_demand > 3 THEN 10 ELSE 0 END)
-                                )) as hidden_demand_score
-                            FROM demand_analysis da
-                            LEFT JOIN inventory i ON da.product_id = i.product_id AND da.store_id = i.store_id
-                            WHERE da.weeks_since_last_sale >= 1 OR COALESCE(i.quantity_on_hand, 0) = 0
-                        )
-                        
-                        SELECT 
-                            product_name, store_name, category,
-                            ROUND(avg_weekly_demand, 2) as avg_weekly_demand,
-                            weeks_since_last_sale,
-                            current_stock,
-                            ROUND(hidden_demand_score, 1) as hidden_demand_score,
-                            CASE 
-                                WHEN current_stock = 0 AND avg_weekly_demand > 2 THEN 'URGENT_RESTOCK'
-                                WHEN weeks_since_last_sale > 3 AND avg_weekly_demand > 1 THEN 'INVESTIGATE_STOCKOUT'
-                                WHEN hidden_demand_score > 60 THEN 'HIGH_OPPORTUNITY'
-                                WHEN hidden_demand_score > 30 THEN 'MONITOR'
-                                ELSE 'LOW_PRIORITY'
-                            END as recommendation,
-                            CASE 
-                                WHEN current_stock = 0 THEN 'Zero stock - immediate restock needed'
-                                WHEN weeks_since_last_sale > 4 THEN 'Long sales gap - check for supply issues'
-                                WHEN hidden_demand_score > 70 THEN 'Strong hidden demand signal detected'
-                                ELSE 'Monitor inventory levels'
-                            END as insight
-                        FROM inventory_correlation
-                        ORDER BY hidden_demand_score DESC, avg_weekly_demand DESC
-                        LIMIT 50
-                        """
-                        
-                        params = (f"{lookback_days} days",)
-                        hidden_demand_df = execute_query_for_dashboard(sql, params)
+                        if hidden_demand_df is not None and not hidden_demand_df.empty:
+                            # Check if required columns exist
+                            required_columns = ['hidden_demand_units', 'store_on_hand', 'suggested_transfer_units']
+                            if all(col in hidden_demand_df.columns for col in required_columns):
+                                # Add calculated fields for the advanced interface
+                                hidden_demand_df['hidden_demand_score'] = (
+                                    hidden_demand_df['hidden_demand_units'] * 10 + 
+                                    (hidden_demand_df['hidden_demand_units'] > 0).astype(int) * 20 +
+                                    (hidden_demand_df['store_on_hand'] == 0).astype(int) * 30 +
+                                    (hidden_demand_df['suggested_transfer_units'] > 0).astype(int) * 15
+                                ).clip(0, 100)
+                                
+                                hidden_demand_df['recommendation'] = hidden_demand_df.apply(
+                                    lambda row: 'URGENT_RESTOCK' if row['store_on_hand'] == 0 and row['hidden_demand_units'] > 0
+                                    else 'HIGH_OPPORTUNITY' if row['hidden_demand_score'] > 60
+                                    else 'MONITOR' if row['hidden_demand_score'] > 30
+                                    else 'LOW_PRIORITY', axis=1
+                                )
+                                
+                                hidden_demand_df['insight'] = hidden_demand_df.apply(
+                                    lambda row: 'Zero stock - immediate restock needed' if row['store_on_hand'] == 0
+                                    else 'Strong hidden demand signal detected' if row['hidden_demand_score'] > 70
+                                    else 'Monitor inventory levels', axis=1
+                                )
+                            else:
+                                st.error("Missing required columns in hidden demand data")
+                                hidden_demand_df = None
                         
                         if hidden_demand_df is not None and not hidden_demand_df.empty:
                             # Summary metrics
                             urgent_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'URGENT_RESTOCK'])
                             high_opp_count = len(hidden_demand_df[hidden_demand_df['recommendation'] == 'HIGH_OPPORTUNITY'])
+                            total_hidden_demand = hidden_demand_df['hidden_demand_units'].sum()
                             
                             col1, col2, col3 = st.columns(3)
                             with col1:
@@ -3978,32 +3927,25 @@ def render_advanced_analytics():
                             with col2:  
                                 st.metric("✅ High Opportunities", high_opp_count)
                             with col3:
-                                avg_score = hidden_demand_df['hidden_demand_score'].mean()
-                                st.metric("📈 Avg Demand Score", f"{avg_score:.1f}")
+                                st.metric("📦 Total Hidden Demand", f"{total_hidden_demand:,.0f}")
                             
-                            # Style the dataframe
-                            def style_score(val):
-                                if val >= 70: return 'background-color: #ff4444; color: white'
-                                elif val >= 50: return 'background-color: #ff8800; color: white'  
-                                elif val >= 30: return 'background-color: #ffaa00; color: black'
-                                else: return ''
+                            # Display the dataframe with the new columns
+                            display_columns = ['product_name', 'store_name', 'hidden_demand_units', 'store_on_hand', 'warehouse_on_hand', 'suggested_transfer_units', 'hidden_demand_score', 'recommendation']
                             
-                            def style_recommendation(val):
-                                colors = {
-                                    'URGENT_RESTOCK': 'background-color: #ff0000; color: white; font-weight: bold',
-                                    'HIGH_OPPORTUNITY': 'background-color: #ff6600; color: white',
-                                    'INVESTIGATE_STOCKOUT': 'background-color: #ffaa00; color: black',
-                                    'MONITOR': 'background-color: #0066ff; color: white'
-                                }
-                                return colors.get(val, '')
+                            # Filter to only show columns that exist
+                            available_columns = [col for col in display_columns if col in hidden_demand_df.columns]
                             
-                            styled_df = hidden_demand_df.style.applymap(
-                                style_score, subset=['hidden_demand_score']
-                            ).applymap(
-                                style_recommendation, subset=['recommendation']
+                            st.dataframe(
+                                hidden_demand_df[available_columns],
+                                column_config={
+                                    'hidden_demand_units': st.column_config.NumberColumn(label="Hidden Demand", format="%,d"),
+                                    'suggested_transfer_units': st.column_config.NumberColumn(label="Suggest Transfer", format="%,d"),
+                                    'store_on_hand': st.column_config.NumberColumn(label="Store QOH", format="%,d"),
+                                    'warehouse_on_hand': st.column_config.NumberColumn(label="WH QOH", format="%,d"),
+                                    'hidden_demand_score': st.column_config.NumberColumn(label="Demand Score", format="%.1f"),
+                                },
+                                use_container_width=True
                             )
-                            
-                            st.dataframe(styled_df, use_container_width=True)
                             
                             # Download option
                             csv_data = hidden_demand_df.to_csv(index=False)
@@ -6316,115 +6258,97 @@ DEFAULT_STORES = ["Rockwell", "Greenhills", "Magnolia", "North Edsa", "Fairview"
 @st.cache_data(ttl=300)
 def get_hidden_demand(store_filter_ids=None, warehouse_ids=None):
     """
-    Hidden demand detection per product, per store.
-    If no store_filter_ids are provided, default to Rockwell, Greenhills, Magnolia, North Edsa, Fairview.
+    Hidden demand per store–SKU. Prioritizes product names.
+    Defaults to the 5 key stores if no store filter is provided.
     """
-    # Load the SQL template
-    sql_template_path = "supabot/data/queries/hidden_demand.sql"
-    try:
-        with open(sql_template_path, 'r') as f:
-            sql = f.read()
-    except FileNotFoundError:
-        # Fallback SQL if template file not found
-        sql = """
-        WITH baseline_daily AS (
-            SELECT 
-                p.id as product_id,
-                p.name as product_name,
-                s.id as store_id,
-                s.name as store_name,
-                AVG(daily_units) as baseline_daily_units
-            FROM (
-                SELECT 
-                    ti.product_id,
-                    t.store_id,
-                    DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') as sale_date,
-                    SUM(ti.quantity) as daily_units
-                FROM transaction_items ti
-                JOIN transactions t ON ti.transaction_ref_id = t.ref_id
-                WHERE LOWER(t.transaction_type) = 'sale' 
-                AND COALESCE(t.is_cancelled, false) = false
-                AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '30 days'
-                AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') < (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '7 days'
-                GROUP BY ti.product_id, t.store_id, DATE(t.transaction_time AT TIME ZONE 'Asia/Manila')
-            ) daily_sales
-            JOIN products p ON daily_sales.product_id = p.id
-            JOIN stores s ON daily_sales.store_id = s.id
-            GROUP BY p.id, p.name, s.id, s.name
-            HAVING AVG(daily_units) > 0
-        ),
-        
-        last_7d_sales AS (
-            SELECT 
-                ti.product_id,
-                t.store_id,
-                SUM(ti.quantity) as last_7d_units
-            FROM transaction_items ti
-            JOIN transactions t ON ti.transaction_ref_id = t.ref_id
-            WHERE LOWER(t.transaction_type) = 'sale' 
-            AND COALESCE(t.is_cancelled, false) = false
-            AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL '7 days'
-            GROUP BY ti.product_id, t.store_id
-        ),
-        
-        current_inventory AS (
-            SELECT 
-                i.product_id,
-                i.store_id,
-                COALESCE(i.quantity_on_hand, 0) as store_on_hand
-            FROM inventory i
-            /* __WAREHOUSE_FILTER__ */
-        ),
-        
-        warehouse_inventory AS (
-            SELECT 
-                i.product_id,
-                COALESCE(SUM(i.quantity_on_hand), 0) as warehouse_on_hand
-            FROM inventory i
-            JOIN stores s ON i.store_id = s.id
-            WHERE s.name IN ('Rockwell', 'Greenhills', 'Magnolia', 'North Edsa', 'Fairview')
-            GROUP BY i.product_id
-        )
-        
-        SELECT 
-            bd.product_name,
-            bd.store_name,
-            bd.baseline_daily_units,
-            COALESCE(l7d.last_7d_units, 0) as last_7d_units,
-            (bd.baseline_daily_units * 7) - COALESCE(l7d.last_7d_units, 0) as hidden_demand_units,
-            COALESCE(ci.store_on_hand, 0) as store_on_hand,
-            COALESCE(wi.warehouse_on_hand, 0) as warehouse_on_hand,
-            LEAST(
-                (bd.baseline_daily_units * 7) - COALESCE(l7d.last_7d_units, 0),
-                COALESCE(wi.warehouse_on_hand, 0)
-            ) as suggested_transfer_units
-        FROM baseline_daily bd
-        LEFT JOIN last_7d_sales l7d ON bd.product_id = l7d.product_id AND bd.store_id = l7d.store_id
-        LEFT JOIN current_inventory ci ON bd.product_id = ci.product_id AND bd.store_id = ci.store_id
-        LEFT JOIN warehouse_inventory wi ON bd.product_id = wi.product_id
-        WHERE (bd.baseline_daily_units * 7) - COALESCE(l7d.last_7d_units, 0) > 0
-        ORDER BY hidden_demand_units DESC, product_name ASC
-        """
-    
-    params = []
-
-    # Inject warehouse filter if provided
-    if warehouse_ids and len(warehouse_ids) > 0:
-        sql = sql.replace("/* __WAREHOUSE_FILTER__ */", "WHERE i.store_id = ANY(%s)")
-        params.append(warehouse_ids)
-    else:
-        sql = sql.replace("/* __WAREHOUSE_FILTER__ */", "")
-
-    # If no store filter given, use default five stores
+    # Resolve default stores → ids
     if not store_filter_ids:
         store_df = get_store_list()
         store_filter_ids = store_df[store_df['name'].isin(DEFAULT_STORES)]['id'].tolist()
 
-    if store_filter_ids:
-        sql = sql + " AND s.id = ANY(%s)"
-        params.append(store_filter_ids)
+    sql = """
+    WITH params AS (
+      SELECT 
+        NOW() AT TIME ZONE 'Asia/Manila' AS now_mnl,
+        INTERVAL '8 weeks'  AS baseline_window,
+        INTERVAL '7 days'   AS recent_window
+    ),
+    baseline AS (
+      SELECT
+        t.store_id,
+        ti.product_id,
+        COALESCE(SUM(ti.quantity)::numeric / NULLIF(COUNT(DISTINCT DATE(t.transaction_time AT TIME ZONE 'Asia/Manila')),0),0) AS baseline_daily_units
+      FROM transaction_items ti
+      JOIN transactions t  ON ti.transaction_ref_id = t.ref_id
+      JOIN params p ON TRUE
+      WHERE LOWER(t.transaction_type) = 'sale'
+        AND (t.is_cancelled = false OR t.is_cancelled IS NULL)
+        AND (t.transaction_time AT TIME ZONE 'Asia/Manila') >= p.now_mnl - p.baseline_window
+      GROUP BY t.store_id, ti.product_id
+    ),
+    recent AS (
+      SELECT
+        t.store_id,
+        ti.product_id,
+        COALESCE(SUM(ti.quantity),0) AS last7d_units
+      FROM transaction_items ti
+      JOIN transactions t ON ti.transaction_ref_id = t.ref_id
+      JOIN params p ON TRUE
+      WHERE LOWER(t.transaction_type) = 'sale'
+        AND (t.is_cancelled = false OR t.is_cancelled IS NULL)
+        AND (t.transaction_time AT TIME ZONE 'Asia/Manila') >= p.now_mnl - p.recent_window
+      GROUP BY t.store_id, ti.product_id
+    ),
+    store_stock AS (
+      SELECT i.store_id, i.product_id, SUM(i.quantity_on_hand) AS store_qoh
+      FROM inventory i
+      GROUP BY i.store_id, i.product_id
+    ),
+    warehouse_stock AS (
+      SELECT i.product_id, SUM(i.quantity_on_hand) AS wh_qoh
+      FROM inventory i
+      /* __WAREHOUSE_FILTER__ */
+      GROUP BY i.product_id
+    )
+    SELECT
+      s.name                                                              AS store_name,
+      p.name                                                              AS product_name,
+      COALESCE(b.baseline_daily_units,0)                                  AS baseline_daily_units,
+      COALESCE(r.last7d_units,0)                                          AS last7d_units,
+      GREATEST(0, ROUND(7*COALESCE(b.baseline_daily_units,0) - COALESCE(r.last7d_units,0))) AS hidden_demand_units,
+      COALESCE(ss.store_qoh,0)                                            AS store_on_hand,
+      COALESCE(ws.wh_qoh,0)                                               AS warehouse_on_hand,
+      LEAST(
+        GREATEST(0, ROUND(7*COALESCE(b.baseline_daily_units,0) - COALESCE(r.last7d_units,0))),
+        COALESCE(ws.wh_qoh,0)
+      )                                                                    AS suggested_transfer_units
+    FROM baseline b
+    FULL JOIN recent r
+      ON r.store_id = b.store_id AND r.product_id = b.product_id
+    JOIN stores s   ON s.id = COALESCE(b.store_id, r.store_id)
+    JOIN products p ON p.id = COALESCE(b.product_id, r.product_id)
+    LEFT JOIN store_stock     ss ON ss.store_id = COALESCE(b.store_id, r.store_id) AND ss.product_id = COALESCE(b.product_id, r.product_id)
+    LEFT JOIN warehouse_stock ws ON ws.product_id = COALESCE(b.product_id, r.product_id)
+    WHERE
+      (
+        GREATEST(0, ROUND(7*COALESCE(b.baseline_daily_units,0) - COALESCE(r.last7d_units,0))) > 0
+        OR (COALESCE(ss.store_qoh,0) <= 1 AND COALESCE(ws.wh_qoh,0) > 0 AND COALESCE(b.baseline_daily_units,0) > 0)
+      )
+      AND s.id = ANY(%s)
+    ORDER BY suggested_transfer_units DESC, hidden_demand_units DESC
+    LIMIT 500;
+    """
 
-    df = execute_query_for_dashboard(sql, params=params if params else None)
+    params = [store_filter_ids]
+
+    # Optional warehouse filter
+    if warehouse_ids and len(warehouse_ids) > 0:
+        sql = sql.replace("/* __WAREHOUSE_FILTER__ */", "WHERE i.store_id = ANY(%s)")
+        params = [warehouse_ids] + params
+    else:
+        sql = sql.replace("/* __WAREHOUSE_FILTER__ */", "")
+
+    df = execute_query_for_dashboard(sql, params=params)
     return df if df is not None else pd.DataFrame()
 
 # --- PRODUCT SALES REPORT ---
@@ -6439,7 +6363,7 @@ def render_product_sales_report():
         st.error("Could not fetch store list. Check database connection.")
         return
     
-    store_options = {row["name"]: row["id"] for row in store_df.iter_rows(named=True)}
+    store_options = {row.name: row.id for row in store_df.itertuples()}
     store_names = list(store_options.keys())
     
     st.markdown("### 🎛️ Report Configuration")
