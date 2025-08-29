@@ -60,13 +60,10 @@ def main():
                 transform: translateX(0) !important;
             }
             
-            /* Fix time period selectors */
-            .stRadio > div {
-                width: 100% !important;
-                margin-bottom: 0.5rem !important;
-            }
-            
-            .stRadio > div > label {
+            /* Fix time period selectors - ONLY for time selectors, not sidebar */
+            .time-period-selector .stRadio > div > label,
+            .filter-container .stRadio > div > label,
+            .chart-view-filters .stRadio > div > label {
                 width: 100% !important;
                 display: flex !important;
                 align-items: center !important;
@@ -173,15 +170,19 @@ def main():
                 padding: 0.5rem !important;
             }
             
-            /* Ensure all radio buttons are properly styled */
-            [data-baseweb="radio"] {
+            /* Ensure form radio buttons are properly styled - but NOT sidebar navigation */
+            .filter-container [data-baseweb="radio"],
+            .time-period-selector [data-baseweb="radio"],
+            .chart-view-filters [data-baseweb="radio"] {
                 display: flex !important;
                 flex-direction: column !important;
                 gap: 0.5rem !important;
                 width: 100% !important;
             }
             
-            [data-baseweb="radio"] label {
+            .filter-container [data-baseweb="radio"] label,
+            .time-period-selector [data-baseweb="radio"] label,
+            .chart-view-filters [data-baseweb="radio"] label {
                 width: 100% !important;
                 text-align: left !important;
                 padding: 0.5rem !important;
@@ -195,7 +196,7 @@ def main():
             }
             
             /* Fix any remaining form alignment issues */
-            .stRadio, .stSelectbox, .stMultiselect, .stDateInput {
+            .stSelectbox, .stMultiselect, .stDateInput {
                 width: 100% !important;
                 margin-bottom: 0.5rem !important;
             }
