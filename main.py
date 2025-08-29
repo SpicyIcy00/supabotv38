@@ -15,7 +15,6 @@ from appv38 import (
     render_chart_view,
     render_chat,
     render_settings,
-    render_ai_intelligence_hub,
     render_advanced_analytics,
     run_benchmarks,
 )
@@ -31,18 +30,28 @@ def main():
         # Initialize session state
         init_session_state()
         
+        # Mobile detection and optimization
+        try:
+            # Simple mobile detection - you can enhance this with more sophisticated detection
+            import streamlit as st
+            if not st.session_state.get('_is_mobile'):
+                # Set mobile flag based on basic detection
+                st.session_state['_is_mobile'] = False
+        except:
+            pass
+        
         # Sidebar Navigation
         st.sidebar.title("SupaBot BI")
         pages = [
             "Dashboard",
-            "Product Sales Report",
+            "Product Sales Report", 
             "Chart View",
             "Advanced Analytics",
             "AI Assistant",
             "Settings",
         ]
         
-        # Page selector
+        # Page selector - mobile optimized
         selected_page = st.sidebar.radio(
             "Navigate to:",
             pages,

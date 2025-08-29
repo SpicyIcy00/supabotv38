@@ -448,6 +448,159 @@ class DashboardStyles:
         [data-testid="stMetric"], .dashboard-card, button {
             margin-bottom: 0.4rem;
         }
+        
+        /* Mobile sidebar optimizations */
+        [data-testid="stSidebar"] {
+            min-width: 100% !important;
+            max-width: 100% !important;
+            padding: 0.5rem !important;
+        }
+        
+        [data-testid="stSidebar"] [data-baseweb="radio"] {
+            flex-direction: column !important;
+            gap: 0.5rem !important;
+        }
+        
+        [data-testid="stSidebar"] [data-baseweb="radio"] label {
+            min-height: 48px !important;
+            display: flex !important;
+            align-items: center !important;
+            padding: 0.75rem !important;
+            font-size: 0.9rem !important;
+            border: 1px solid #2e303d !important;
+            border-radius: 8px !important;
+            background-color: #1c1e26 !important;
+            margin-bottom: 0.25rem !important;
+        }
+        
+        [data-testid="stSidebar"] [data-baseweb="radio"] input[type="radio"]:checked + label {
+            background-color: #3a47d5 !important;
+            border-color: #00d2ff !important;
+            color: white !important;
+        }
+        
+        /* Mobile sidebar title optimization */
+        [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+            font-size: 1.2rem !important;
+            margin-bottom: 1rem !important;
+            text-align: center !important;
+        }
+        
+        /* Mobile chart view optimizations */
+        .chart-view-container {
+            padding: 0.5rem !important;
+        }
+        
+        .chart-view-container [data-testid="stExpander"] {
+            margin-bottom: 0.5rem !important;
+        }
+        
+        .chart-view-container [data-testid="stContainer"] {
+            padding: 0.5rem !important;
+            margin-bottom: 0.5rem !important;
+        }
+        
+        /* Mobile chart rendering optimizations */
+        .plotly-graph-div {
+            height: 250px !important;
+            max-height: 350px !important;
+            width: 100% !important;
+        }
+        
+        /* Mobile filter container optimizations */
+        .filter-container.chart-view-filters {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 0.5rem !important;
+        }
+        
+        .filter-container.chart-view-filters [data-testid="column"] {
+            width: 100% !important;
+            margin-bottom: 0.5rem !important;
+        }
+        
+        /* Mobile time period selector */
+        .time-period-selector {
+            margin-bottom: 1rem !important;
+        }
+        
+        .time-period-selector [data-baseweb="radio"] {
+            flex-direction: column !important;
+            gap: 0.5rem !important;
+        }
+        
+        .time-period-selector [data-baseweb="radio"] label {
+            min-height: 48px !important;
+            display: flex !important;
+            align-items: center !important;
+            padding: 0.75rem !important;
+            border: 1px solid #2e303d !important;
+            border-radius: 8px !important;
+            background-color: #1c1e26 !important;
+        }
+        
+        .time-period-selector [data-baseweb="radio"] input[type="radio"]:checked + label {
+            background-color: #3a47d5 !important;
+            border-color: #00d2ff !important;
+            color: white !important;
+        }
+        
+        /* Mobile-specific time selector */
+        .mobile-time-selector [data-baseweb="radio"] label {
+            font-size: 0.9rem !important;
+            padding: 0.5rem !important;
+            min-height: 44px !important;
+        }
+        
+        /* Mobile header optimizations */
+        .mobile-header {
+            padding: 0.75rem !important;
+            margin-bottom: 1rem !important;
+        }
+        
+        .mobile-header h1 {
+            font-size: 1.5rem !important;
+            line-height: 1.2 !important;
+        }
+        
+        .mobile-header p {
+            font-size: 0.8rem !important;
+            margin-top: 0.25rem !important;
+        }
+        
+        /* Mobile chart container optimizations */
+        .chart-view-container {
+            padding: 0.25rem !important;
+        }
+        
+        /* Mobile chart height optimizations */
+        .plotly-graph-div {
+            height: 250px !important;
+            max-height: 300px !important;
+        }
+        
+        /* Mobile filter spacing optimizations */
+        .filter-container.chart-view-filters {
+            margin-bottom: 1rem !important;
+        }
+        
+        .filter-container.chart-view-filters [data-testid="column"] {
+            margin-bottom: 0.75rem !important;
+        }
+        
+        /* Mobile-specific chart container */
+        .mobile-chart-container {
+            padding: 0.5rem !important;
+            margin-bottom: 1rem !important;
+            border: 1px solid #2e303d !important;
+            border-radius: 8px !important;
+            background-color: #1c1e26 !important;
+        }
+        
+        .mobile-chart-container .plotly-graph-div {
+            height: 250px !important;
+            max-height: 250px !important;
+        }
     }
     
     /* Tablet: 2-column layout for some sections */

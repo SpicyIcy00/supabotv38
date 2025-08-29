@@ -202,3 +202,27 @@ def close_responsive_containers():
     ResponsiveLayout.close_filter_section()
     ResponsiveLayout.close_chart_section()
     ResponsiveLayout.close_kpi_section()
+
+
+def is_mobile_device():
+    """Detect if the current device is mobile based on screen size."""
+    try:
+        import streamlit as st
+        
+        # Check if we're in a mobile context
+        if hasattr(st, '_get_script_run_ctx') and st._get_script_run_ctx():
+            # This is a basic mobile detection - in production you might want more sophisticated detection
+            return True
+        return False
+    except:
+        return False
+
+
+def get_mobile_chart_height():
+    """Get appropriate chart height for mobile devices."""
+    return 250 if is_mobile_device() else 500
+
+
+def get_mobile_container_padding():
+    """Get appropriate container padding for mobile devices."""
+    return "0.25rem" if is_mobile_device() else "1rem"

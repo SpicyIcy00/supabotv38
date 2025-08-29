@@ -5040,7 +5040,18 @@ def get_chart_view_data(time_range, metric_type, granularity, filters, store_fil
 
 def render_chart_view():
     """Render the enhanced Chart View page with multi-select, live search, and comparison."""
-    st.markdown('<div class="main-header"><h1>Chart View</h1><p>Deep dive analytics with interactive visualizations</p></div>', unsafe_allow_html=True)
+    # Mobile detection and optimization
+    from supabot.ui.components.responsive import is_mobile_device, get_mobile_chart_height
+    
+    # Detect mobile device
+    is_mobile = is_mobile_device()
+    st.session_state['_is_mobile'] = is_mobile
+    
+    # Mobile-optimized header
+    if is_mobile:
+        st.markdown('<div class="main-header mobile-header"><h1>📊 Chart View</h1><p>Mobile-optimized analytics</p></div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="main-header"><h1>Chart View</h1><p>Deep dive analytics with interactive visualizations</p></div>', unsafe_allow_html=True)
 
     # --- Session State Initialization ---
     if 'cv_time' not in st.session_state: st.session_state.cv_time = "7d"
@@ -5055,9 +5066,16 @@ def render_chart_view():
     st.markdown("### Time Period")
     time_ranges = ["1d", "7d", "1m", "3m", "6m", "1y"]
     current_time_index = time_ranges.index(st.session_state.cv_time) if st.session_state.cv_time in time_ranges else 1
-    st.markdown('<div class="time-period-selector">', unsafe_allow_html=True)
-    selected_cv_time = st.radio("", time_ranges, index=current_time_index, horizontal=True, key="time_range_selector")
-    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Mobile-optimized time period selector
+    if is_mobile:
+        st.markdown('<div class="time-period-selector mobile-time-selector">', unsafe_allow_html=True)
+        selected_cv_time = st.radio("", time_ranges, index=current_time_index, key="time_range_selector")
+        st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="time-period-selector">', unsafe_allow_html=True)
+        selected_cv_time = st.radio("", time_ranges, index=current_time_index, horizontal=True, key="time_range_selector")
+        st.markdown('</div>', unsafe_allow_html=True)
     
     # Update session state only if selection changed
     if selected_cv_time != st.session_state.cv_time:
@@ -5322,15 +5340,24 @@ def render_chart_view():
             fill='tozeroy', fillcolor=fillcolor, mode='lines'
         ))
 
+    # Mobile-responsive chart height
+    chart_height = get_mobile_chart_height()
+    
     fig.update_layout(
         title_text=chart_title, template="plotly_dark", plot_bgcolor='#131722', paper_bgcolor='#131722',
-        height=500, hovermode='x unified',
+        height=chart_height, hovermode='x unified',
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=12)),
         xaxis=dict(title_text='<b>Date</b>', title_font=dict(size=14), tickfont=dict(color='#B0B0B0'), gridcolor='rgba(255, 255, 255, 0.1)', showgrid=True, zeroline=False),
         yaxis=dict(title_text=f'<b>{y_axis_title}</b>', title_font=dict(size=14), tickfont=dict(color='#B0B0B0'), gridcolor='rgba(255, 255, 255, 0.1)', tickprefix="₱", tickformat=",.0f", hoverformat=",.0f", showgrid=True, zeroline=False),
         hoverlabel=dict(bgcolor="#2A2E39", font_size=14)
     )
-    st.plotly_chart(fig, use_container_width=True)
+    # Mobile-optimized chart container
+    if is_mobile:
+        st.markdown('<div class="chart-view-container mobile-chart-container">', unsafe_allow_html=True)
+        st.plotly_chart(fig, use_container_width=True, height=250)
+        st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.plotly_chart(fig, use_container_width=True)
 
     with st.expander("View Detailed Data"):
         st.dataframe(data, use_container_width=True, hide_index=True)
