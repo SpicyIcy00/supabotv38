@@ -6,7 +6,6 @@ A modular, scalable business intelligence dashboard built with Streamlit.
 import streamlit as st
 from supabot.config.settings import settings
 from supabot.ui.styles.css import DashboardStyles
-from supabot.ui.components.responsive import ResponsiveLayout
 
 # Import page renderers from the original app
 from appv38 import (
@@ -32,7 +31,8 @@ def main():
         # Initialize session state
         init_session_state()
         
-        # Define pages
+        # Sidebar Navigation
+        st.sidebar.title("SupaBot BI")
         pages = [
             "Dashboard",
             "Product Sales Report",
@@ -42,10 +42,12 @@ def main():
             "Settings",
         ]
         
-        # Use responsive navigation
-        selected_page = ResponsiveLayout.responsive_navigation(
-            pages=pages,
-            current_page=st.session_state.get("current_page", "Dashboard")
+        # Page selector
+        selected_page = st.sidebar.radio(
+            "Navigate to:",
+            pages,
+            key="navigation",
+            index=pages.index(st.session_state.get("current_page", "Dashboard"))
         )
         
         # Update session state if page changed
