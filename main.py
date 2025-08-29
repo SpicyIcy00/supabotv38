@@ -6,6 +6,7 @@ A modular, scalable business intelligence dashboard built with Streamlit.
 import streamlit as st
 from supabot.config.settings import settings
 from supabot.ui.styles.css import DashboardStyles
+from supabot.ui.components.responsive import ResponsiveLayout
 
 # Import page renderers from the original app
 from appv38 import (
@@ -15,6 +16,7 @@ from appv38 import (
     render_chart_view,
     render_chat,
     render_settings,
+    render_ai_intelligence_hub,
     render_advanced_analytics,
     run_benchmarks,
 )
@@ -30,33 +32,20 @@ def main():
         # Initialize session state
         init_session_state()
         
-        # Mobile detection and optimization
-        try:
-            # Simple mobile detection - you can enhance this with more sophisticated detection
-            import streamlit as st
-            if not st.session_state.get('_is_mobile'):
-                # Set mobile flag based on basic detection
-                st.session_state['_is_mobile'] = False
-        except:
-            pass
-        
-        # Sidebar Navigation
-        st.sidebar.title("SupaBot BI")
+        # Define pages
         pages = [
             "Dashboard",
-            "Product Sales Report", 
+            "Product Sales Report",
             "Chart View",
             "Advanced Analytics",
             "AI Assistant",
             "Settings",
         ]
         
-        # Page selector - mobile optimized
-        selected_page = st.sidebar.radio(
-            "Navigate to:",
-            pages,
-            key="navigation",
-            index=pages.index(st.session_state.get("current_page", "Dashboard"))
+        # Use responsive navigation
+        selected_page = ResponsiveLayout.responsive_navigation(
+            pages=pages,
+            current_page=st.session_state.get("current_page", "Dashboard")
         )
         
         # Update session state if page changed

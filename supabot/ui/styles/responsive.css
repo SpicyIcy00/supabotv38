@@ -8,6 +8,89 @@
         padding: 0.5rem;
     }
     
+    /* Mobile sidebar optimizations */
+    .css-1d391kg {
+        width: 100% !important;
+        max-width: 100% !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        z-index: 1000 !important;
+        background: #0e1117 !important;
+        border-right: none !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.3) !important;
+        height: 100vh !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    
+    /* Mobile sidebar content */
+    .css-1d391kg .css-1d391kg {
+        padding: 0.5rem !important;
+        overflow-y: auto !important;
+        max-height: 100vh !important;
+    }
+    
+    /* Mobile navigation title */
+    .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3 {
+        font-size: 1.2rem !important;
+        margin-bottom: 1rem !important;
+        text-align: center !important;
+        color: #00d2ff !important;
+        padding: 0.5rem !important;
+    }
+    
+    /* Mobile radio buttons */
+    .css-1d391kg [data-baseweb="radio"] {
+        margin-bottom: 0.5rem !important;
+    }
+    
+    .css-1d391kg [data-baseweb="radio"] label {
+        min-height: 48px !important;
+        display: flex !important;
+        align-items: center !important;
+        padding: 0.75rem !important;
+        background: #1c1e26 !important;
+        border-radius: 8px !important;
+        margin-bottom: 0.5rem !important;
+        border: 1px solid #2e303d !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    .css-1d391kg [data-baseweb="radio"] label:hover {
+        background: #2e303d !important;
+        border-color: #00d2ff !important;
+        transform: translateY(-1px) !important;
+    }
+    
+    .css-1d391kg [data-baseweb="radio"] input[type="radio"]:checked + label {
+        background: #00d2ff !important;
+        color: #0e1117 !important;
+        border-color: #00d2ff !important;
+        font-weight: bold !important;
+    }
+    
+    /* Mobile sidebar scrollbar */
+    .css-1d391kg::-webkit-scrollbar {
+        width: 6px !important;
+    }
+    
+    .css-1d391kg::-webkit-scrollbar-track {
+        background: #1c1e26 !important;
+    }
+    
+    .css-1d391kg::-webkit-scrollbar-thumb {
+        background: #00d2ff !important;
+        border-radius: 3px !important;
+    }
+    
+    /* Mobile main content adjustment */
+    .main .block-container {
+        margin-left: 0 !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+    
     /* Mobile header adjustments */
     .main-header {
         margin: 0 0 1rem 0;
@@ -22,22 +105,6 @@
     .main-header p {
         font-size: 0.8rem;
         margin-top: 0.25rem;
-    }
-    
-    /* Mobile-specific header */
-    .mobile-header {
-        padding: 0.75rem !important;
-        margin-bottom: 1rem !important;
-    }
-    
-    .mobile-header h1 {
-        font-size: 1.5rem !important;
-        line-height: 1.2 !important;
-    }
-    
-    .mobile-header p {
-        font-size: 0.8rem !important;
-        margin-top: 0.25rem !important;
     }
     
     /* Mobile KPI grid - 2x2 layout */
@@ -129,120 +196,10 @@
         margin-bottom: 0.5rem !important;
     }
     
-    /* Mobile sidebar optimizations */
-    .css-1d391kg, [data-testid="stSidebar"] {
-        width: 100% !important;
-        max-width: 100% !important;
-        padding: 0.5rem !important;
-    }
-    
-    [data-testid="stSidebar"] [data-baseweb="radio"] {
-        flex-direction: column !important;
-        gap: 0.5rem !important;
-    }
-    
-    [data-testid="stSidebar"] [data-baseweb="radio"] label {
-        min-height: 48px !important;
-        display: flex !important;
-        align-items: center !important;
-        padding: 0.75rem !important;
-        border: 1px solid #2e303d !important;
-        border-radius: 8px !important;
-        background-color: #1c1e26 !important;
-        margin-bottom: 0.25rem !important;
-    }
-    
-    [data-testid="stSidebar"] [data-baseweb="radio"] input[type="radio"]:checked + label {
-        background-color: #3a47d5 !important;
-        border-color: #00d2ff !important;
-        color: white !important;
-    }
-    
-    /* Mobile sidebar title optimization */
-    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
-        font-size: 1.2rem !important;
-        margin-bottom: 1rem !important;
-        text-align: center !important;
-    }
-    
     /* Mobile chart height adjustments */
     .plotly-graph-div {
-        height: 250px !important;
-        max-height: 350px !important;
-    }
-    
-    /* Chart View mobile optimizations */
-    .chart-view-container {
-        padding: 0.25rem !important;
-    }
-    
-    .chart-view-container [data-testid="stExpander"] {
-        margin-bottom: 0.5rem !important;
-    }
-    
-    .chart-view-container [data-testid="stContainer"] {
-        padding: 0.5rem !important;
-        margin-bottom: 0.5rem !important;
-    }
-    
-    /* Mobile chart view filters */
-    .filter-container.chart-view-filters {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 0.5rem !important;
-        margin-bottom: 1rem !important;
-    }
-    
-    .filter-container.chart-view-filters [data-testid="column"] {
-        width: 100% !important;
-        margin-bottom: 0.75rem !important;
-    }
-    
-    /* Mobile time period selector */
-    .time-period-selector {
-        margin-bottom: 1rem !important;
-    }
-    
-    .time-period-selector [data-baseweb="radio"] {
-        flex-direction: column !important;
-        gap: 0.5rem !important;
-    }
-    
-    .time-period-selector [data-baseweb="radio"] label {
-        min-height: 48px !important;
-        display: flex !important;
-        align-items: center !important;
-        padding: 0.75rem !important;
-        border: 1px solid #2e303d !important;
-        border-radius: 8px !important;
-        background-color: #1c1e26 !important;
-    }
-    
-    .time-period-selector [data-baseweb="radio"] input[type="radio"]:checked + label {
-        background-color: #3a47d5 !important;
-        border-color: #00d2ff !important;
-        color: white !important;
-    }
-    
-    /* Mobile-specific chart container */
-    .mobile-chart-container {
-        padding: 0.5rem !important;
-        margin-bottom: 1rem !important;
-        border: 1px solid #2e303d !important;
-        border-radius: 8px !important;
-        background-color: #1c1e26 !important;
-    }
-    
-    .mobile-chart-container .plotly-graph-div {
-        height: 250px !important;
-        max-height: 250px !important;
-    }
-    
-    /* Mobile-specific time selector */
-    .mobile-time-selector [data-baseweb="radio"] label {
-        font-size: 0.9rem !important;
-        padding: 0.5rem !important;
-        min-height: 44px !important;
+        height: 300px !important;
+        max-height: 400px !important;
     }
     
     /* Mobile dataframe optimizations */
@@ -348,10 +305,80 @@
     .dashboard-card-tall {
         min-height: 350px;
     }
+    
+    /* Mobile sidebar toggle button */
+    .mobile-nav-toggle {
+        position: fixed !important;
+        top: 1rem !important;
+        left: 1rem !important;
+        z-index: 1001 !important;
+        background: #00d2ff !important;
+        color: #0e1117 !important;
+        border: none !important;
+        border-radius: 50% !important;
+        width: 48px !important;
+        height: 48px !important;
+        font-size: 1.5rem !important;
+        cursor: pointer !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.3) !important;
+        display: none !important;
+    }
+    
+    /* Mobile sidebar overlay */
+    .sidebar-overlay {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        background: rgba(0,0,0,0.5) !important;
+        z-index: 999 !important;
+        display: none !important;
+    }
 }
 
 /* ===== TABLET STYLES (768px - 1023px) ===== */
 @media (min-width: 768px) and (max-width: 1023px) {
+    /* Tablet sidebar */
+    .css-1d391kg {
+        width: 21rem !important;
+        max-width: 21rem !important;
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+        z-index: auto !important;
+        background: #0e1117 !important;
+        border-right: 1px solid #2e303d !important;
+        box-shadow: none !important;
+        height: auto !important;
+        overflow-y: visible !important;
+    }
+    
+    /* Tablet navigation title */
+    .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3 {
+        font-size: 1.5rem !important;
+        margin-bottom: 1.5rem !important;
+        text-align: left !important;
+        color: #00d2ff !important;
+        padding: 0 !important;
+    }
+    
+    /* Tablet radio buttons */
+    .css-1d391kg [data-baseweb="radio"] label {
+        min-height: 44px !important;
+        padding: 0.5rem !important;
+        background: transparent !important;
+        border: none !important;
+        margin-bottom: 0.25rem !important;
+        transition: background 0.2s ease !important;
+    }
+    
+    .css-1d391kg [data-baseweb="radio"] label:hover {
+        background: #1c1e26 !important;
+        border: none !important;
+        transform: none !important;
+    }
+    
     /* Tablet header */
     .main-header {
         padding: 1.25rem;
@@ -367,107 +394,223 @@
     }
     
     /* Tablet KPI grid - 2x2 layout */
-    .kpi-container {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.4rem;
-        margin-bottom: 0.6rem;
-    }
-    
     .kpi-container [data-testid="column"] {
-        width: 100% !important;
-        margin: 0 !important;
+        width: 50% !important;
+        margin-bottom: 0.3rem !important;
     }
     
-    /* Tablet chart layout - side by side when possible */
-    .chart-container {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.6rem;
-    }
-    
+    /* Tablet chart layout - side by side when space allows */
     .chart-container [data-testid="column"] {
-        width: 100% !important;
-        margin: 0 !important;
+        width: 50% !important;
+        margin-bottom: 0.6rem !important;
     }
     
     /* Tablet filter layout - 3 columns */
-    .filter-container {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 0.4rem;
-        margin-bottom: 0.8rem;
-    }
-    
     .filter-container [data-testid="column"] {
-        width: 100% !important;
-        margin: 0 !important;
+        width: 33.33% !important;
+        margin-bottom: 0.6rem !important;
     }
     
-    /* Tablet spacing */
-    .dashboard-card, [data-testid="stMetric"] {
-        margin-bottom: 0.4rem;
+    /* Tablet table optimizations */
+    .table-container {
+        margin-bottom: 1.5rem;
     }
     
-    /* Ensure consistent vertical spacing between dashboard items */
-    .dashboard-item {
-        margin-bottom: 0.4rem !important;
+    /* Tablet button optimizations */
+    button, [role="button"] {
+        min-height: 44px;
+        min-width: 44px;
+        font-size: 0.95rem;
+        padding: 0.6rem 0.9rem;
     }
     
-    .dashboard-item:last-child {
-        margin-bottom: 0 !important;
+    /* Tablet form controls */
+    [data-baseweb="select"], [data-baseweb="date-input"], [data-baseweb="radio"] {
+        margin-bottom: 1rem;
     }
     
-    /* Make vertical gaps exactly match horizontal column gap */
-    .dashboard-item + .dashboard-item {
-        margin-top: 0.4rem !important;
+    /* Tablet multiselect optimizations */
+    [data-baseweb="multiselect"] {
+        margin-bottom: 1rem;
+        min-height: 44px;
     }
     
-    /* Force consistent spacing for Streamlit containers */
+    /* Tablet tab optimizations */
+    [data-baseweb="tab-list"] {
+        flex-direction: row;
+        gap: 0.75rem;
+    }
+    
+    [data-baseweb="tab"] {
+        min-height: 44px;
+        font-size: 0.95rem;
+        padding: 0.6rem 0.9rem;
+    }
+    
+    /* Tablet expander optimizations */
+    [data-testid="stExpander"] {
+        margin-bottom: 0.75rem;
+    }
+    
+    /* Tablet container optimizations */
     [data-testid="stContainer"] {
-        margin-bottom: 0.4rem !important;
+        padding: 0.75rem !important;
+        margin-bottom: 0.75rem !important;
+    }
+    
+    /* Tablet chart height adjustments */
+    .plotly-graph-div {
+        height: 350px !important;
+        max-height: 450px !important;
+    }
+    
+    /* Tablet dataframe optimizations */
+    [data-testid="stDataFrame"] {
+        font-size: 0.85rem;
+    }
+    
+    /* Tablet button group optimizations */
+    [data-baseweb="button-group"] {
+        flex-direction: row;
+        gap: 0.75rem;
+    }
+    
+    [data-baseweb="button-group"] button {
+        width: auto;
+        min-height: 44px;
     }
     
     /* Tablet optimizations for specific page layouts */
     
     /* Product Sales Report tablet optimizations */
     .product-sales-filters [data-testid="column"] {
-        width: 50% !important;
-        margin-bottom: 0.5rem !important;
+        width: 33.33% !important;
+        margin-bottom: 0.75rem !important;
     }
     
     .product-sales-header [data-testid="column"] {
         width: 50% !important;
-        margin-bottom: 0.5rem !important;
+        margin-bottom: 0.75rem !important;
     }
     
     /* Chart View tablet optimizations */
+    .time-period-selector [data-baseweb="radio"] {
+        flex-direction: row !important;
+        gap: 0.75rem !important;
+    }
+    
     .chart-view-filters [data-testid="column"] {
-        width: 50% !important;
-        margin-bottom: 0.5rem !important;
+        width: 33.33% !important;
+        margin-bottom: 0.75rem !important;
     }
     
     /* Advanced Analytics tablet optimizations */
+    .advanced-analytics-tabs [data-baseweb="tab-list"] {
+        flex-direction: row !important;
+        gap: 0.75rem !important;
+    }
+    
     .demand-analytics-section [data-testid="column"] {
         width: 50% !important;
-        margin-bottom: 0.5rem !important;
+        margin-bottom: 0.75rem !important;
     }
     
     /* AI Assistant tablet optimizations */
     .ai-examples-container [data-testid="column"] {
         width: 50% !important;
-        margin-bottom: 0.5rem !important;
+        margin-bottom: 0.75rem !important;
     }
     
     /* Settings tablet optimizations */
     .settings-actions [data-testid="column"] {
         width: 50% !important;
-        margin-bottom: 0.5rem !important;
+        margin-bottom: 0.75rem !important;
+    }
+    
+    /* Tablet chat message optimizations */
+    .user-message, .ai-message {
+        margin-bottom: 1rem !important;
+        padding: 0.75rem !important;
+        font-size: 0.95rem !important;
+    }
+    
+    /* Tablet download button optimizations */
+    [data-testid="stDownloadButton"] {
+        width: auto !important;
+        min-height: 44px !important;
+    }
+    
+    /* Tablet spinner optimizations */
+    [data-testid="stSpinner"] {
+        margin: 1.5rem 0 !important;
+    }
+    
+    /* Tablet spacing */
+    .dashboard-card, [data-testid="stMetric"] {
+        margin-bottom: 0.6rem;
+    }
+    
+    /* Ensure consistent vertical spacing between dashboard items */
+    .dashboard-item {
+        margin-bottom: 0.6rem;
+    }
+    
+    .dashboard-item:last-child {
+        margin-bottom: 0;
+    }
+    
+    /* Tablet chart height adjustments */
+    .dashboard-card {
+        min-height: 300px;
+    }
+    
+    .dashboard-card-tall {
+        min-height: 400px;
     }
 }
 
 /* ===== DESKTOP STYLES (1024px+) ===== */
 @media (min-width: 1024px) {
+    /* Desktop sidebar */
+    .css-1d391kg {
+        width: 21rem !important;
+        max-width: 21rem !important;
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+        z-index: auto !important;
+        background: #0e1117 !important;
+        border-right: 1px solid #2e303d !important;
+        box-shadow: none !important;
+        height: auto !important;
+        overflow-y: visible !important;
+    }
+    
+    /* Desktop navigation title */
+    .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3 {
+        font-size: 1.5rem !important;
+        margin-bottom: 1.5rem !important;
+        text-align: left !important;
+        color: #00d2ff !important;
+        padding: 0 !important;
+    }
+    
+    /* Desktop radio buttons */
+    .css-1d391kg [data-baseweb="radio"] label {
+        min-height: 44px !important;
+        padding: 0.5rem !important;
+        background: transparent !important;
+        border: none !important;
+        margin-bottom: 0.25rem !important;
+        transition: background 0.2s ease !important;
+    }
+    
+    .css-1d391kg [data-baseweb="radio"] label:hover {
+        background: #1c1e26 !important;
+        border: none !important;
+        transform: none !important;
+    }
+    
     /* Desktop header */
     .main-header {
         padding: 1.5rem;
@@ -483,46 +626,178 @@
     }
     
     /* Desktop KPI grid - 4 columns */
-    .kpi-container {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr 1fr;
-        gap: 0.6rem;
-        margin-bottom: 0.8rem;
-    }
-    
     .kpi-container [data-testid="column"] {
-        width: 100% !important;
-        margin: 0 !important;
+        width: 25% !important;
+        margin-bottom: 0 !important;
     }
     
-    /* Desktop chart layout - original side by side */
-    .chart-container {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.8rem;
-    }
-    
+    /* Desktop chart layout - side by side */
     .chart-container [data-testid="column"] {
-        width: 100% !important;
-        margin: 0 !important;
+        width: 50% !important;
+        margin-bottom: 0 !important;
     }
     
     /* Desktop filter layout - 3 columns */
-    .filter-container {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 0.6rem;
-        margin-bottom: 0.8rem;
+    .filter-container [data-testid="column"] {
+        width: 33.33% !important;
+        margin-bottom: 0 !important;
     }
     
-    .filter-container [data-testid="column"] {
-        width: 100% !important;
-        margin: 0 !important;
+    /* Desktop table optimizations */
+    .table-container {
+        margin-bottom: 2rem;
+    }
+    
+    /* Desktop button optimizations */
+    button, [role="button"] {
+        min-height: 44px;
+        min-width: 44px;
+        font-size: 1rem;
+        padding: 0.75rem 1rem;
+    }
+    
+    /* Desktop form controls */
+    [data-baseweb="select"], [data-baseweb="date-input"], [data-baseweb="radio"] {
+        margin-bottom: 1.5rem;
+    }
+    
+    /* Desktop multiselect optimizations */
+    [data-baseweb="multiselect"] {
+        margin-bottom: 1.5rem;
+        min-height: 44px;
+    }
+    
+    /* Desktop tab optimizations */
+    [data-baseweb="tab-list"] {
+        flex-direction: row;
+        gap: 1rem;
+    }
+    
+    [data-baseweb="tab"] {
+        min-height: 44px;
+        font-size: 1rem;
+        padding: 0.75rem 1rem;
+    }
+    
+    /* Desktop expander optimizations */
+    [data-testid="stExpander"] {
+        margin-bottom: 1rem;
+    }
+    
+    /* Desktop container optimizations */
+    [data-testid="stContainer"] {
+        padding: 1rem !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    /* Desktop chart height adjustments */
+    .plotly-graph-div {
+        height: 400px !important;
+        max-height: 500px !important;
+    }
+    
+    /* Desktop dataframe optimizations */
+    [data-testid="stDataFrame"] {
+        font-size: 0.9rem;
+    }
+    
+    /* Desktop button group optimizations */
+    [data-baseweb="button-group"] {
+        flex-direction: row;
+        gap: 1rem;
+    }
+    
+    [data-baseweb="button-group"] button {
+        width: auto;
+        min-height: 44px;
+    }
+    
+    /* Desktop optimizations for specific page layouts */
+    
+    /* Product Sales Report desktop optimizations */
+    .product-sales-filters [data-testid="column"] {
+        width: 25% !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    .product-sales-header [data-testid="column"] {
+        width: 50% !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    /* Chart View desktop optimizations */
+    .time-period-selector [data-baseweb="radio"] {
+        flex-direction: row !important;
+        gap: 1rem !important;
+    }
+    
+    .chart-view-filters [data-testid="column"] {
+        width: 33.33% !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    /* Advanced Analytics desktop optimizations */
+    .advanced-analytics-tabs [data-baseweb="tab-list"] {
+        flex-direction: row !important;
+        gap: 1rem !important;
+    }
+    
+    .demand-analytics-section [data-testid="column"] {
+        width: 50% !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    /* AI Assistant desktop optimizations */
+    .ai-examples-container [data-testid="column"] {
+        width: 50% !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    /* Settings desktop optimizations */
+    .settings-actions [data-testid="column"] {
+        width: 50% !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    /* Desktop chat message optimizations */
+    .user-message, .ai-message {
+        margin-bottom: 1.5rem !important;
+        padding: 1rem !important;
+        font-size: 1rem !important;
+    }
+    
+    /* Desktop download button optimizations */
+    [data-testid="stDownloadButton"] {
+        width: auto !important;
+        min-height: 44px !important;
+    }
+    
+    /* Desktop spinner optimizations */
+    [data-testid="stSpinner"] {
+        margin: 2rem 0 !important;
     }
     
     /* Desktop spacing */
     .dashboard-card, [data-testid="stMetric"] {
         margin-bottom: 0;
+    }
+    
+    /* Ensure consistent vertical spacing between dashboard items */
+    .dashboard-item {
+        margin-bottom: 0;
+    }
+    
+    .dashboard-item:last-child {
+        margin-bottom: 0;
+    }
+    
+    /* Desktop chart height adjustments */
+    .dashboard-card {
+        height: 350px;
+    }
+    
+    .dashboard-card-tall {
+        height: 450px;
     }
 }
 
