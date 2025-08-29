@@ -43,8 +43,8 @@ def main():
             
             /* Fix sidebar on mobile */
             .css-1d391kg {
-                width: 100% !important;
-                max-width: 100% !important;
+                width: 280px !important;
+                max-width: 280px !important;
                 position: fixed !important;
                 top: 0 !important;
                 left: 0 !important;
@@ -53,6 +53,7 @@ def main():
                 background: #1e1e1e !important;
                 transform: translateX(-100%) !important;
                 transition: transform 0.3s ease-in-out !important;
+                overflow-y: auto !important;
             }
             
             /* Show sidebar when expanded */
@@ -218,7 +219,39 @@ def main():
                 margin: 0 !important;
                 min-width: 100% !important;
             }
-        }
+            
+            /* Fix sidebar navigation styling */
+            .css-1d391kg .stRadio > div > label {
+                display: flex !important;
+                align-items: center !important;
+                padding: 0.25rem 0.5rem !important;
+                margin: 0.1rem 0 !important;
+                border: none !important;
+                background: transparent !important;
+                min-height: 32px !important;
+                font-size: 0.85rem !important;
+                color: white !important;
+            }
+            
+            /* Fix sidebar title */
+            .css-1d391kg h1 {
+                font-size: 1.1rem !important;
+                margin-bottom: 0.5rem !important;
+                text-align: left !important;
+            }
+            
+            /* Make sidebar navigation more compact */
+            .css-1d391kg .stRadio > div {
+                margin-bottom: 0.1rem !important;
+            }
+            
+            /* Ensure radio button and text are properly aligned */
+            .time-period-selector .stRadio input[type="radio"],
+            .filter-container .stRadio input[type="radio"],
+            .chart-view-filters .stRadio input[type="radio"] {
+                margin: 0 !important;
+                margin-right: 0.5rem !important;
+            }
         </style>
         """, unsafe_allow_html=True)
         
@@ -306,7 +339,7 @@ def main():
         
         # Page selector
         selected_page = st.sidebar.radio(
-            "Navigate to:",
+            "",
             pages,
             key="navigation",
             index=pages.index(st.session_state.get("current_page", "Dashboard"))
