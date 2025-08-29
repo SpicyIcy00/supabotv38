@@ -31,6 +31,196 @@ def main():
         # Initialize session state
         init_session_state()
         
+        # Inject mobile-responsive CSS directly
+        st.markdown("""
+        <style>
+        /* Mobile-specific styles that will work immediately */
+        @media (max-width: 767px) {
+            /* Force mobile layout */
+            .stApp {
+                padding: 0.5rem !important;
+            }
+            
+            /* Fix sidebar on mobile */
+            .css-1d391kg {
+                width: 100% !important;
+                max-width: 100% !important;
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                height: 100vh !important;
+                z-index: 1000 !important;
+                background: #1e1e1e !important;
+                transform: translateX(-100%) !important;
+                transition: transform 0.3s ease-in-out !important;
+            }
+            
+            /* Show sidebar when expanded */
+            .css-1d391kg.expanded {
+                transform: translateX(0) !important;
+            }
+            
+            /* Fix time period selectors */
+            .stRadio > div {
+                width: 100% !important;
+                margin-bottom: 0.5rem !important;
+            }
+            
+            .stRadio > div > label {
+                width: 100% !important;
+                display: flex !important;
+                align-items: center !important;
+                padding: 0.5rem !important;
+                margin: 0.25rem 0 !important;
+                border: 1px solid #ddd !important;
+                border-radius: 4px !important;
+                background: #f8f9fa !important;
+                min-height: 48px !important;
+                font-size: 0.9rem !important;
+            }
+            
+            /* Fix form controls */
+            .stSelectbox, .stMultiselect, .stDateInput {
+                width: 100% !important;
+                margin-bottom: 0.5rem !important;
+            }
+            
+            /* Fix charts on mobile */
+            .plotly-graph-div {
+                width: 100% !important;
+                height: 350px !important;
+                max-width: 100vw !important;
+                overflow: hidden !important;
+            }
+            
+            [data-testid="stChart"] {
+                width: 100% !important;
+                max-width: 100% !important;
+                overflow: hidden !important;
+            }
+            
+            /* Fix containers */
+            [data-testid="stContainer"] {
+                width: 100% !important;
+                margin-bottom: 0.5rem !important;
+                padding: 0.5rem !important;
+            }
+            
+            /* Fix columns */
+            [data-testid="column"] {
+                width: 100% !important;
+                margin-bottom: 0.5rem !important;
+            }
+            
+            /* Fix buttons */
+            button, [role="button"] {
+                width: 100% !important;
+                min-height: 48px !important;
+            }
+            
+            /* Fix sidebar toggle button */
+            .css-1d391kg .css-1v0mbdj button[aria-label*="sidebar"] {
+                position: fixed !important;
+                top: 1rem !important;
+                right: 1rem !important;
+                z-index: 1001 !important;
+                background: #00d2ff !important;
+                color: white !important;
+                border: none !important;
+                border-radius: 50% !important;
+                width: 48px !important;
+                height: 48px !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+            }
+            
+            /* Ensure main content takes full width */
+            .main .block-container {
+                width: 100% !important;
+                max-width: 100% !important;
+                padding-left: 0.5rem !important;
+                padding-right: 0.5rem !important;
+            }
+            
+            /* Fix time period selector specific styling */
+            .time-period-selector {
+                width: 100% !important;
+                margin-bottom: 0.5rem !important;
+            }
+            
+            /* Fix filter containers */
+            .filter-container {
+                width: 100% !important;
+            }
+            
+            .filter-container [data-testid="column"] {
+                width: 100% !important;
+                margin-bottom: 0.5rem !important;
+            }
+            
+            /* Fix chart view filters */
+            .chart-view-filters [data-testid="column"] {
+                width: 100% !important;
+                margin-bottom: 0.5rem !important;
+            }
+            
+            /* Fix comparison sets */
+            [data-testid="stContainer"] {
+                width: 100% !important;
+                margin: 0 0 0.5rem 0 !important;
+                padding: 0.5rem !important;
+            }
+            
+            /* Ensure all radio buttons are properly styled */
+            [data-baseweb="radio"] {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0.5rem !important;
+                width: 100% !important;
+            }
+            
+            [data-baseweb="radio"] label {
+                width: 100% !important;
+                text-align: left !important;
+                padding: 0.5rem !important;
+                margin: 0 !important;
+                border: 1px solid #ddd !important;
+                border-radius: 4px !important;
+                background: #f8f9fa !important;
+                min-height: 48px !important;
+                display: flex !important;
+                align-items: center !important;
+            }
+            
+            /* Fix any remaining form alignment issues */
+            .stRadio, .stSelectbox, .stMultiselect, .stDateInput {
+                width: 100% !important;
+                margin-bottom: 0.5rem !important;
+            }
+            
+            /* Ensure consistent spacing */
+            .stMarkdown, .stText {
+                margin-bottom: 0.5rem !important;
+            }
+            
+            /* Fix mobile chart layout */
+            .chart-container {
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            
+            .chart-container [data-testid="column"] {
+                width: 100% !important;
+                margin: 0 !important;
+                min-width: 100% !important;
+            }
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
         # Inject mobile sidebar JavaScript
         st.markdown("""
         <script>
