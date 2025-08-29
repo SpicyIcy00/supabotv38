@@ -38,7 +38,7 @@ def show_pool_status():
         st.sidebar.json(status)
         
         if status.get("status") == "exhausted":
-            st.sidebar.error("⚠️ Connection pool exhausted!")
+            st.sidebar.error("Connection pool exhausted!")
             st.sidebar.info("Consider increasing DB_MAX_POOL in secrets.toml")
         
         if st.sidebar.button("Reset Pool"):
@@ -64,19 +64,19 @@ def debug_connection_issues():
 
 def monitor_connection_health():
     """Comprehensive connection health monitoring."""
-    if st.sidebar.checkbox("🔍 Connection Health Monitor"):
+    if st.sidebar.checkbox("Connection Health Monitor"):
         db_manager = get_db_manager()
         status = db_manager.get_pool_status()
         
-        st.sidebar.write("### 🔧 Connection Pool Health")
+        st.sidebar.write("### Connection Pool Health")
         
         # Status indicator
         if status.get("status") == "healthy":
-            st.sidebar.success("✅ Pool Healthy")
+            st.sidebar.success("Pool Healthy")
         elif status.get("status") == "exhausted":
-            st.sidebar.error("❌ Pool Exhausted")
+            st.sidebar.error("Pool Exhausted")
         else:
-            st.sidebar.warning("⚠️ Pool Issues")
+            st.sidebar.warning("Pool Issues")
         
         # Connection details
         col1, col2 = st.sidebar.columns(2)
@@ -97,11 +97,11 @@ def monitor_connection_health():
         
         # Recommendations
         if usage_pct > 80:
-            st.sidebar.warning("⚠️ High connection usage. Consider increasing DB_MAX_POOL.")
+            st.sidebar.warning("High connection usage. Consider increasing DB_MAX_POOL.")
         elif usage_pct > 60:
-            st.sidebar.info("ℹ️ Moderate connection usage.")
+            st.sidebar.info("Moderate connection usage.")
         else:
-            st.sidebar.success("✅ Low connection usage.")
+            st.sidebar.success("Low connection usage.")
         
         # Action buttons
         col1, col2 = st.sidebar.columns(2)
@@ -114,7 +114,7 @@ def monitor_connection_health():
                     st.error("Reset failed!")
         
         with col2:
-            if st.button("📊 Refresh", help="Refresh pool status"):
+            if st.button("Refresh", help="Refresh pool status"):
                 st.rerun()
 
 # Enhanced Training System from v1justsupabot.py
@@ -1350,7 +1350,7 @@ def get_previous_period_dates(current_start: date, current_end: date, time_filte
     
     # Debug output (only if needed)
     if False:  # Set to True for debugging
-        print(f"🔍 DEBUG COMPARISON for {time_filter}:")
+        print(f"DEBUG COMPARISON for {time_filter}:")
         print(f"   Input current_start: {current_start}")
         print(f"   Input current_end: {current_end}")
         print(f"   Today: {today}")
@@ -1388,7 +1388,7 @@ def get_previous_period_dates(current_start: date, current_end: date, time_filte
         
         # Debug output (only if needed)
         if False:  # Set to True for debugging
-            print(f"🔍 7D ALWAYS-YESTERDAY LOGIC:")
+            print(f"7D ALWAYS-YESTERDAY LOGIC:")
             print(f"   Today: {today}")
             print(f"   Yesterday: {yesterday}")
             print(f"   Current week: {current_start} to {current_end}")
@@ -2600,12 +2600,12 @@ def get_dashboard_metrics(time_filter="7D", store_filter_ids=None, custom_start=
     try:
         # Debug: Show the SQL and parameters being executed (only if debug mode is enabled)
         if st.session_state.get('debug_mode', False):
-            st.info(f"🔍 Debug SQL: {sql}")
-            st.info(f"🔍 Debug Params: {params}")
-            st.info(f"🔍 Store filter IDs type: {type(store_filter_ids)}")
-            st.info(f"🔍 Store filter IDs value: {store_filter_ids}")
-            st.info(f"🔍 Debug Store Filter IDs: {store_filter_ids}")
-            st.info(f"🔍 Debug Store Clause: {store_clause}")
+            st.info(f"Debug SQL: {sql}")
+            st.info(f"Debug Params: {params}")
+            st.info(f"Store filter IDs type: {type(store_filter_ids)}")
+            st.info(f"Store filter IDs value: {store_filter_ids}")
+            st.info(f"Debug Store Filter IDs: {store_filter_ids}")
+            st.info(f"Debug Store Clause: {store_clause}")
         
         result = execute_query_for_dashboard(sql, params=params)
         
@@ -2622,7 +2622,7 @@ def get_dashboard_metrics(time_filter="7D", store_filter_ids=None, custom_start=
             transactions_change_pct = ((current_transactions - prev_transactions) / max(prev_transactions, 1)) * 100 if prev_transactions > 0 else 100.0 if current_transactions > 0 else 0.0
             
             # CRITICAL: Debug the actual values and calculations
-            print(f"🔍 METRICS DEBUG for {time_filter}:")
+            print(f"METRICS DEBUG for {time_filter}:")
             print(f"   Current Sales: ₱{current_sales:,.0f}")
             print(f"   Previous Sales: ₱{prev_sales:,.0f}")
             print(f"   Sales Change: ₱{current_sales - prev_sales:,.0f}")
@@ -2635,9 +2635,9 @@ def get_dashboard_metrics(time_filter="7D", store_filter_ids=None, custom_start=
             print(f"   Is percentage positive? {sales_change_pct > 0}")
             
             if st.session_state.get('debug_mode', False):
-                st.info(f"🔍 Debug Result: {result.to_dict('records')}")
-                st.info(f"🔍 Sales: ₱{current_sales:,.0f} vs ₱{prev_sales:,.0f} = {sales_change_pct:+.1f}%")
-                st.info(f"🔍 Transactions: {current_transactions:,} vs {prev_transactions:,} = {transactions_change_pct:+.1f}%")
+                st.info(f"Debug Result: {result.to_dict('records')}")
+                st.info(f"Sales: ₱{current_sales:,.0f} vs ₱{prev_sales:,.0f} = {sales_change_pct:+.1f}%")
+                st.info(f"Transactions: {current_transactions:,} vs {prev_transactions:,} = {transactions_change_pct:+.1f}%")
             
             return {
                 'current_sales': current_sales,
@@ -2651,7 +2651,7 @@ def get_dashboard_metrics(time_filter="7D", store_filter_ids=None, custom_start=
             }
         else:
             if st.session_state.get('debug_mode', False):
-                st.warning("🔍 Debug: Query returned no results")
+                st.warning("Debug: Query returned no results")
             return {
                 'current_sales': 0, 'current_profit': 0, 'current_transactions': 0,
                 'avg_transaction_value': 0, 'prev_sales': 0, 'prev_profit': 0, 
@@ -2659,30 +2659,30 @@ def get_dashboard_metrics(time_filter="7D", store_filter_ids=None, custom_start=
             }
     except Exception as e:
         if st.session_state.get('debug_mode', False):
-            st.error(f"🔍 Debug KPI Error: {e}")
-            st.error(f"🔍 Debug SQL: {sql}")
-            st.error(f"🔍 Debug Params: {params}")
+            st.error(f"Debug KPI Error: {e}")
+            st.error(f"Debug SQL: {sql}")
+            st.error(f"Debug Params: {params}")
         return {}
 
 def get_dashboard_highlights(metrics, top_sellers_df, time_filter):
     """Generate business highlights from available data"""
     if not metrics or top_sellers_df.empty:
-        return "📊 **Current Status:** Data is being processed. Please check back in a moment for detailed insights."
+        return "**Current Status:** Data is being processed. Please check back in a moment for detailed insights."
     
     sales = metrics.get('current_sales', 0)
     transactions = metrics.get('current_transactions', 0)
     
     if sales == 0:
-        return "📊 **Current Status:** No sales data available for the selected period and filters."
+        return "**Current Status:** No sales data available for the selected period and filters."
     
     top_product = top_sellers_df.iloc[0]['product_name'] if not top_sellers_df.empty else "N/A"
     top_revenue = top_sellers_df.iloc[0]['total_revenue'] if not top_sellers_df.empty else 0
     
-    highlights = f"""**💰 Period Performance:** Generated ₱{sales:,.0f} in sales across {transactions:,} transactions.
+    highlights = f"""**Period Performance:** Generated ₱{sales:,.0f} in sales across {transactions:,} transactions.
 
 **🏆 Top Performer:** {top_product} leads with ₱{top_revenue:,.0f} in revenue.
 
-**📈 Business Focus:** {"Strong performance period" if sales > 100000 else "Growth opportunity period"} - {"continue current strategies" if sales > 100000 else "consider promotional activities"}."""
+**Business Focus:** {"Strong performance period" if sales > 100000 else "Growth opportunity period"} - {"continue current strategies" if sales > 100000 else "consider promotional activities"}."""
     
     return highlights
 
@@ -2701,7 +2701,7 @@ def generate_dashboard_ai_insights(metrics, sales_cat_df, top_sellers_df, time_f
         # Get Claude client
         client = get_claude_client()
         if not client:
-            return "🤖 AI insights are not available. Please check your Claude API configuration in Settings."
+            return "AI insights are not available. Please check your Claude API configuration in Settings."
         
         # Prepare data summary for AI analysis
         current_sales = metrics.get('current_sales', 0)
@@ -2764,7 +2764,7 @@ Keep it concise, business-focused, and actionable.
         return response.content[0].text
         
     except Exception as e:
-        return f"🤖 **AI Insights Temporarily Unavailable**\n\nError: {str(e)}\n\nPlease try again later or check your API configuration."
+        return f"**AI Insights Temporarily Unavailable**\n\nError: {str(e)}\n\nPlease try again later or check your API configuration."
 
 def get_category_insights(sales_cat_df, time_filter="7D"):
     """Generate AI-powered category performance insights"""
@@ -2984,7 +2984,7 @@ def resolve_store_ids(store_df, selected_stores, debug=False):
 
 def render_dashboard():
     """Renders the BI dashboard with tabbed navigation separating data visuals and AI hub."""
-    st.markdown('<div class="main-header"><h1>📊 SupaBot Ultimate BI Dashboard</h1><p>Real-time Business Intelligence powered by AI</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header"><h1>SupaBot Ultimate BI Dashboard</h1><p>Real-time Business Intelligence powered by AI</p></div>', unsafe_allow_html=True)
 
     dashboard_tab = st.container()
 
@@ -2995,10 +2995,14 @@ def render_dashboard():
         with filter_col1:
             time_options = ["1D", "7D", "1M", "6M", "1Y", "Custom"]
             time_index = time_options.index(st.session_state.dashboard_time_filter) if st.session_state.dashboard_time_filter in time_options else 1
-            st.session_state.dashboard_time_filter = st.radio(
+            selected_time = st.radio(
                 "Select Time Period:", options=time_options, index=time_index,
                 horizontal=True, key="time_filter_selector"
             )
+            
+            # Update session state only if selection changed
+            if selected_time != st.session_state.dashboard_time_filter:
+                st.session_state.dashboard_time_filter = selected_time
             
             # Custom date range (only show if Custom is selected)
             if st.session_state.dashboard_time_filter == "Custom":
@@ -3034,10 +3038,12 @@ def render_dashboard():
             store_list = store_df['name'].tolist()
             all_stores_option = "All Stores"
             
-            st.session_state.dashboard_store_filter = st.multiselect(
+            # Use a different key to avoid session state conflicts
+            st.multiselect(
                 "Select Store(s):",
                 options=[all_stores_option] + store_list,
-                default=st.session_state.dashboard_store_filter
+                default=st.session_state.dashboard_store_filter,
+                key="store_selector_widget"
             )
         
         st.markdown('</div>', unsafe_allow_html=True)
@@ -3059,20 +3065,20 @@ def render_dashboard():
         
         # Debug: Show what we're working with (only in debug mode)
         if st.session_state.get('debug_mode', False):
-            st.info(f"🔍 Debug: Selected stores: {selected_stores}")
-            st.info(f"🔍 Debug: Store filter IDs: {store_filter_ids}")
-            st.info(f"🔍 Debug: Store dataframe: {store_df.to_dict('records') if not store_df.empty else 'Empty'}")
+            st.info(f"Debug: Selected stores: {selected_stores}")
+            st.info(f"Debug: Store filter IDs: {store_filter_ids}")
+            st.info(f"Debug: Store dataframe: {store_df.to_dict('records') if not store_df.empty else 'Empty'}")
             
             # Test database connection with a simple query
             try:
                 test_sql = "SELECT COUNT(*) as total_transactions FROM transactions WHERE LOWER(transaction_type) = 'sale'"
                 test_result = execute_query_for_dashboard(test_sql)
                 if test_result is not None and not test_result.empty:
-                    st.success(f"🔍 Database Test: Found {test_result.iloc[0]['total_transactions']} total sales transactions")
+                    st.success(f"Database Test: Found {test_result.iloc[0]['total_transactions']} total sales transactions")
                 else:
-                    st.warning("🔍 Database Test: No results from simple query")
+                    st.warning("Database Test: No results from simple query")
             except Exception as test_e:
-                st.error(f"🔍 Database Test Error: {test_e}")
+                st.error(f"Database Test Error: {test_e}")
             
             # Test specific store and time period data
             if store_filter_ids and time_filter != "Custom":
@@ -3097,11 +3103,11 @@ def render_dashboard():
                     test_store_result = execute_query_for_dashboard(test_store_sql, params=[str(start_date), str(end_date), store_filter_ids])
                     if test_store_result is not None and not test_store_result.empty:
                         row = test_store_result.iloc[0]
-                        st.info(f"🔍 Store Test: Found {row['transaction_count']} transactions, {row['store_count']} stores, ₱{row['total_sales']:,.0f} sales for {time_filter} period")
+                        st.info(f"Store Test: Found {row['transaction_count']} transactions, {row['store_count']} stores, ₱{row['total_sales']:,.0f} sales for {time_filter} period")
                     else:
-                        st.warning("🔍 Store Test: No results for specific stores and time period")
+                        st.warning("Store Test: No results for specific stores and time period")
                 except Exception as store_test_e:
-                    st.error(f"🔍 Store Test Error: {store_test_e}")
+                    st.error(f"Store Test Error: {store_test_e}")
         
         # Get custom dates if applicable
         custom_start = st.session_state.custom_start_date if time_filter == "Custom" else None
@@ -3147,7 +3153,7 @@ def render_dashboard():
                 daily_trend_df = get_daily_trend(days={"1D":1, "7D":7, "1M":30, "6M":180, "1Y":365}.get(time_filter, 7), store_ids=store_filter_ids)
                 
             except Exception as e:
-                st.error(f"❌ Error loading dashboard data: {e}")
+                st.error(f"Error loading dashboard data: {e}")
                 # Provide fallback empty data
                 sales_cat_df = pd.DataFrame()
                 inv_cat_df = pd.DataFrame()
@@ -3156,10 +3162,7 @@ def render_dashboard():
                 daily_trend_df = pd.DataFrame()
         # End of with st.spinner block
 
-        st.markdown("<hr>", unsafe_allow_html=True)
-
         # --- 2. KPI Hero Section (Fixed Percentages) ---
-        st.subheader("🚀 Key Performance Indicators")
 
         def format_percentage_change(current, previous):
             """Calculate and format percentage change"""
@@ -3175,7 +3178,7 @@ def render_dashboard():
             change = ((current - previous) / previous) * 100
             
             # Debug the calculation
-            print(f"🔍 PERCENTAGE DEBUG:")
+            print(f"PERCENTAGE DEBUG:")
             print(f"   Current: {current}")
             print(f"   Previous: {previous}")
             print(f"   Change: {current - previous}")
@@ -3219,12 +3222,10 @@ def render_dashboard():
             st.metric("Avg Transaction Value", f"₱{avg_value:,.0f}", delta)
         
         st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<hr>", unsafe_allow_html=True)
         
         # --- Debug/Raw Data Section for KPIs ---
         if st.session_state.get('debug_mode', False):
-            with st.expander("🔍 Raw KPI Data (Debug)", expanded=False):
+            with st.expander("Raw KPI Data (Debug)", expanded=False):
                 col1, col2 = st.columns(2)
                 
                 with col1:
@@ -3319,17 +3320,125 @@ def render_dashboard():
         
         st.markdown("<hr>", unsafe_allow_html=True)
         
-        # --- 3. Main Grid Layout (AI removed from this tab) ---
+        # --- 3. Main Grid Layout with Uniform Spacing ---
+        st.markdown('''
+        <style>
+        .dashboard-grid {
+            display: flex;
+            gap: 0.4rem;
+            margin-bottom: 0.4rem;
+        }
+        .dashboard-column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+        .dashboard-item {
+            margin-bottom: 0.4rem;
+        }
+        /* Ensure consistent spacing between all dashboard components */
+        .dashboard-item:last-child {
+            margin-bottom: 0;
+        }
+        /* Reduce any additional spacing from Streamlit containers */
+        [data-testid="stContainer"] {
+            margin-bottom: 0.4rem;
+        }
+        [data-testid="stContainer"]:last-child {
+            margin-bottom: 0;
+        }
+        /* Make vertical gaps exactly match horizontal column gap */
+        .dashboard-item + .dashboard-item {
+            margin-top: 0.4rem;
+        }
+        /* Ensure pie chart columns have same vertical spacing */
+        .pie-chart-container {
+            margin-bottom: 0.4rem;
+        }
+        /* Force exact spacing match between vertical and horizontal gaps */
+        .dashboard-item {
+            margin-bottom: 0.4rem !important;
+        }
+        /* Remove any extra spacing from Streamlit elements */
+        [data-testid="stContainer"] {
+            margin-bottom: 0.4rem !important;
+            padding-bottom: 0 !important;
+        }
+        /* Ensure consistent spacing for all dashboard components */
+        .dashboard-item, [data-testid="stContainer"] {
+            margin-bottom: 0.4rem !important;
+        }
+        .dashboard-item:last-child, [data-testid="stContainer"]:last-child {
+            margin-bottom: 0 !important;
+        }
+        /* Override any Streamlit default spacing */
+        .stContainer {
+            margin-bottom: 0.4rem !important;
+            padding-bottom: 0 !important;
+        }
+        /* Target specific Streamlit elements that might add spacing */
+        [data-testid="stContainer"] > div {
+            margin-bottom: 0.4rem !important;
+        }
+        /* Ensure chart containers have consistent spacing */
+        .plotly-graph-div {
+            margin-bottom: 0.4rem !important;
+        }
+        /* Target Streamlit border containers specifically */
+        [data-testid="stContainer"] {
+            margin-bottom: 0.4rem !important;
+            padding: 0.4rem !important;
+        }
+        /* Remove extra spacing from Streamlit elements */
+        [data-testid="stContainer"] * {
+            margin-bottom: 0.4rem !important;
+        }
+        [data-testid="stContainer"] *:last-child {
+            margin-bottom: 0 !important;
+        }
+        /* Force exact spacing for all dashboard elements */
+        .dashboard-item, [data-testid="stContainer"], .plotly-graph-div, [data-testid="stDataFrame"] {
+            margin-bottom: 0.4rem !important;
+        }
+        .dashboard-item:last-child, [data-testid="stContainer"]:last-child, .plotly-graph-div:last-child, [data-testid="stDataFrame"]:last-child {
+            margin-bottom: 0 !important;
+        }
+        /* Override Streamlit's default gap values to match our spacing */
+        [data-testid="column"] {
+            gap: 0.4rem !important;
+        }
+        /* Override Streamlit's small gap specifically */
+        [data-testid="column"] {
+            margin-right: 0.4rem !important;
+        }
+        [data-testid="column"]:last-child {
+            margin-right: 0 !important;
+        }
+        /* Target all possible spacing sources */
+        .dashboard-item, [data-testid="stContainer"], .plotly-graph-div, [data-testid="stDataFrame"], [data-testid="stMarkdown"] {
+            margin-bottom: 0.4rem !important;
+            padding-bottom: 0 !important;
+        }
+        /* Remove any extra spacing from the last elements */
+        .dashboard-item:last-child, [data-testid="stContainer"]:last-child, .plotly-graph-div:last-child, [data-testid="stDataFrame"]:last-child, [data-testid="stMarkdown"]:last-child {
+            margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
+        }
+        </style>
+        ''', unsafe_allow_html=True)
+        
         st.markdown('<div class="chart-container">', unsafe_allow_html=True)
-        left_col, center_col = st.columns([1, 1], gap="large")
+        left_col, center_col = st.columns([1, 1], gap="small")
 
         # --- LEFT COLUMN - PRODUCT & CATEGORY ANALYTICS ---
         with left_col:
-            pie_col1, pie_col2 = st.columns(2)
+            pie_col1, pie_col2 = st.columns(2, gap="small")
             
             with pie_col1:
+                st.markdown('<div class="dashboard-item">', unsafe_allow_html=True)
                 with st.container(border=True):
-                    st.markdown("##### 💰 Sales by Category")
+                    st.markdown("##### Sales by Category")
                     if not sales_cat_df.empty:
                         df_plot = sales_cat_df.head(10).copy()
                         df_plot['category_canonical'] = df_plot['category'].astype(str).apply(canonicalize_category_label)
@@ -3347,10 +3456,12 @@ def render_dashboard():
                         st.plotly_chart(fig, use_container_width=True)
                     else:
                         st.info("No sales data available for selected period/stores.")
+                st.markdown('</div>', unsafe_allow_html=True)
             
             with pie_col2:
+                st.markdown('<div class="dashboard-item">', unsafe_allow_html=True)
                 with st.container(border=True):
-                    st.markdown("##### 📦 Inventory by Category")
+                    st.markdown("##### Inventory by Category")
                     if not inv_cat_df.empty:
                         df_plot = inv_cat_df.copy()
                         df_plot['category_canonical'] = df_plot['category'].astype(str).apply(canonicalize_category_label)
@@ -3368,10 +3479,12 @@ def render_dashboard():
                         st.plotly_chart(fig, use_container_width=True)
                     else:
                         st.info("No inventory data available for selected stores.")
+                st.markdown('</div>', unsafe_allow_html=True)
 
             # Top 10 Products with % change vs previous period
+            st.markdown('<div class="dashboard-item">', unsafe_allow_html=True)
             with st.container(border=True):
-                st.markdown("##### 🏆 Top 10 Products (with % change)")
+                st.markdown("##### Top 10 Products (with % change)")
                 if not top_change_df.empty:
                     df_disp = top_change_df.copy()
                     # Build display columns
@@ -3401,10 +3514,12 @@ def render_dashboard():
                     st.write(styled)
                 else:
                     st.info("No product data available for selected period/stores.")
+            st.markdown('</div>', unsafe_allow_html=True)
 
             # Categories Ranked, stacked under Top Products in the same (left) column
+            st.markdown('<div class="dashboard-item">', unsafe_allow_html=True)
             with st.container(border=True):
-                st.markdown("##### 🗂️ Categories Ranked (with % change)")
+                st.markdown("##### Categories Ranked (with % change)")
                 if not cat_change_df.empty:
                     dfc = cat_change_df.copy()
                     dfc.rename(columns={'category': 'Category', 'total_revenue': 'Sales'}, inplace=True)
@@ -3432,11 +3547,13 @@ def render_dashboard():
                     st.write(styled_c)
                 else:
                     st.info("No category data available for selected period/stores.")
+            st.markdown('</div>', unsafe_allow_html=True)
 
         # --- CENTER COLUMN - STORE & SALES ANALYTICS ---
         with center_col:
+            st.markdown('<div class="dashboard-item">', unsafe_allow_html=True)
             with st.container(border=True):
-                st.markdown("##### 🏪 Store Performance")
+                st.markdown("##### Store Performance")
                 store_performance = get_store_performance_with_comparison(time_filter, store_filter_ids if store_filter_ids else None)
                 if not store_performance.empty:
                     # Fixed store colors to match Chart View
@@ -3500,9 +3617,11 @@ def render_dashboard():
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("No store performance data available.")
+            st.markdown('</div>', unsafe_allow_html=True)
 
+            st.markdown('<div class="dashboard-item">', unsafe_allow_html=True)
             with st.container(border=True):
-                st.markdown("##### 📈 Sales Trend Analysis")
+                st.markdown("##### Sales Trend Analysis")
                 if not daily_trend_df.empty:
                     fig = px.area(daily_trend_df, x='date', y='daily_sales', 
                                  title=f"Sales Trend for Last {time_filter}")
@@ -3512,10 +3631,12 @@ def render_dashboard():
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("No sales trend data for this period.")
+            st.markdown('</div>', unsafe_allow_html=True)
             
             # New Section: Average Sales Per Hour (across selected window)
+            st.markdown('<div class="dashboard-item">', unsafe_allow_html=True)
             with st.container(border=True):
-                st.markdown("##### 🕒 Average Sales Per Hour")
+                st.markdown("##### Average Sales Per Hour")
                 try:
                     df = get_avg_sales_per_hour(time_filter, store_filter_ids if store_filter_ids else None)
                     if df is not None and len(df) > 0:
@@ -3540,6 +3661,7 @@ def render_dashboard():
                         st.info("No data for the selected period/stores.")
                 except Exception:
                     st.info("No data for the selected period/stores.")
+            st.markdown('</div>', unsafe_allow_html=True)
 
             # Center column keeps Store Performance and Sales Trend only
 
@@ -3550,30 +3672,30 @@ def render_dashboard():
         
         # --- AI Intelligence Section (Fullscreen) ---
         st.markdown("---")
-        st.markdown("### 🧠 AI Business Intelligence")
+        st.markdown("### AI Business Intelligence")
         st.markdown("Generate comprehensive 4-week business intelligence reports powered by AI.")
         
         # AI Intelligence generation
-        if st.button("🔍 Generate AI Intelligence Report", type="primary", use_container_width=True, key="dashboard_ai_generate"):
+        if st.button("Generate AI Intelligence Report", type="primary", use_container_width=True, key="dashboard_ai_generate"):
             # Create progress bar
             progress_bar = st.progress(0)
             status_text = st.empty()
             
             try:
                 # Step 1: Fetch data
-                status_text.text("📊 Fetching weekly sales data...")
+                status_text.text("Fetching weekly sales data...")
                 progress_bar.progress(20)
                 overall_weekly = get_overall_weekly_data()
                 
-                status_text.text("🏪 Analyzing store performance...")
+                status_text.text("Analyzing store performance...")
                 progress_bar.progress(35)
                 stores_weekly = get_stores_weekly_data()
                 
-                status_text.text("📦 Processing product data...")
+                status_text.text("Processing product data...")
                 progress_bar.progress(50)
                 products_weekly = get_products_weekly_data()
                 
-                status_text.text("📊 Computing category insights...")
+                status_text.text("Computing category insights...")
                 progress_bar.progress(65)
                 category_weekly = get_category_weekly_data()
                 
@@ -3581,13 +3703,13 @@ def render_dashboard():
                 progress_bar.progress(75)
                 time_patterns = get_time_patterns_data()
                 
-                status_text.text("🤖 Generating AI insights...")
+                status_text.text("Generating AI insights...")
                 progress_bar.progress(85)
                 
                 if overall_weekly:
                     summary = generate_ai_intelligence_summary()
                     progress_bar.progress(100)
-                    status_text.text("✅ Report generated successfully!")
+                    status_text.text("Report generated successfully!")
                     st.session_state['dashboard_intelligence_summary'] = summary
                     
                     # Clear progress indicators after 2 seconds
@@ -3598,36 +3720,36 @@ def render_dashboard():
                 else:
                     progress_bar.empty()
                     status_text.empty()
-                    st.error("❌ Unable to fetch data for analysis.")
+                    st.error("Unable to fetch data for analysis.")
                     
             except Exception as e:
                 progress_bar.empty()
                 status_text.empty()
-                st.error(f"❌ Error generating report: {e}")
+                st.error(f"Error generating report: {e}")
         
         # Display results
         if 'dashboard_intelligence_summary' in st.session_state:
             st.markdown("---")
-            st.markdown("### 📋 AI Business Intelligence Report")
+            st.markdown("### AI Business Intelligence Report")
             st.markdown(st.session_state['dashboard_intelligence_summary'])
             
             # Download option
             st.download_button(
-                label="📥 Download Report",
+                label="Download Report",
                 data=st.session_state['dashboard_intelligence_summary'],
                 file_name=f"dashboard_intelligence_report_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
                 mime="text/plain",
                 key="dashboard_download"
             )
         else:
-            st.info("👆 Click 'Generate AI Intelligence Report' to create your comprehensive 4-week business analysis.")
+            st.info("Click 'Generate AI Intelligence Report' to create your comprehensive 4-week business analysis.")
             
             # Show what the report includes
             col1, col2 = st.columns(2)
             
             with col1:
                 st.markdown("""
-                **📈 Performance Analysis:**
+                **Performance Analysis:**
                 - Store performance rankings & movers
                 - Product winners & losers
                 - Category momentum analysis
@@ -3635,7 +3757,7 @@ def render_dashboard():
             
             with col2:
                 st.markdown("""
-                **🎯 Actionable Insights:**
+                **Actionable Insights:**
                 - Time pattern analysis (best/worst days & hours)
                 - Per-week spotlight with standout performers
                 - Business risks & opportunities identification
@@ -3838,7 +3960,7 @@ def generate_ai_intelligence_summary():
 # Advanced Analytics Page
 def render_advanced_analytics():
     """Render the Advanced Analytics page with comprehensive analytics engines."""
-    st.markdown('<div class="main-header"><h1>🔬 Advanced Analytics</h1><p>Comprehensive business intelligence powered by AI and predictive analytics</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header"><h1>Advanced Analytics</h1><p>Comprehensive business intelligence powered by AI and predictive analytics</p></div>', unsafe_allow_html=True)
 
 
 
@@ -3856,32 +3978,37 @@ def render_advanced_analytics():
     st.caption(f"Filters • Period: {time_filter} • Stores: {'All' if not store_filter_ids else len(store_filter_ids)}")
 
     # Create tabs for different analytics sections
+    st.markdown('<div class="advanced-analytics-tabs">', unsafe_allow_html=True)
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "🔍 Demand Analytics", 
-        "📊 Predictive Forecasting", 
-        "👥 Customer Intelligence", 
-        "🚨 Smart Alerts", 
-        "🤖 Automated Insights"
+        "Demand Analytics", 
+        "Predictive Forecasting", 
+        "Customer Intelligence", 
+        "Smart Alerts", 
+        "Automated Insights"
     ])
+    st.markdown('</div>', unsafe_allow_html=True)
     
     # Tab 1: Demand Analytics Engine
     with tab1:
         
+        st.markdown('<div class="demand-analytics-section">', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("🔍 Advanced Hidden Demand Detection")
-            st.info("📊 Statistical analysis of demand patterns with confidence scoring")
+            st.subheader("Advanced Hidden Demand Detection")
+            st.info("Statistical analysis of demand patterns with confidence scoring")
             
             # Configuration controls
             col1_1, col1_2 = st.columns(2)
             with col1_1:
                 lookback_days = st.selectbox("Analysis Period", [7, 14, 30, 60, 90], index=2, key="lookback_days")
             with col1_2:
-                if st.button("🔍 Analyze Hidden Demand", type="primary", key="analyze_hidden_demand"):
+                if st.button("Analyze Hidden Demand", type="primary", key="analyze_hidden_demand"):
                     st.session_state.trigger_hidden_demand_analysis = True
-            
-            if st.session_state.get('trigger_hidden_demand_analysis', False):
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        if st.session_state.get('trigger_hidden_demand_analysis', False):
                 with st.spinner("Analyzing demand patterns..."):
                     try:
                         # Use the new robust hidden demand function
@@ -3925,9 +4052,9 @@ def render_advanced_analytics():
                             with col1:
                                 st.metric("🚨 Urgent Restocks", urgent_count)
                             with col2:  
-                                st.metric("✅ High Opportunities", high_opp_count)
+                                st.metric("High Opportunities", high_opp_count)
                             with col3:
-                                st.metric("📦 Total Hidden Demand", f"{total_hidden_demand:,.0f}")
+                                st.metric("Total Hidden Demand", f"{total_hidden_demand:,.0f}")
                             
                             # Display the dataframe with the new columns
                             display_columns = ['product_name', 'store_name', 'hidden_demand_units', 'store_on_hand', 'warehouse_on_hand', 'suggested_transfer_units', 'hidden_demand_score', 'recommendation']
@@ -3950,14 +4077,14 @@ def render_advanced_analytics():
                             # Download option
                             csv_data = hidden_demand_df.to_csv(index=False)
                             st.download_button(
-                                "📥 Download Hidden Demand Report",
+                                "Download Hidden Demand Report",
                                 csv_data,
                                 f"hidden_demand_{lookback_days}days.csv",
                                 "text/csv",
                                 use_container_width=True
                             )
                         else:
-                            st.info("💡 No hidden demand opportunities detected in the selected period")
+                            st.info("No hidden demand opportunities detected in the selected period")
                             
                     except Exception as e:
                         st.error(f"Error analyzing hidden demand: {e}")
@@ -3966,7 +4093,7 @@ def render_advanced_analytics():
                 st.session_state.trigger_hidden_demand_analysis = False
         
         with col2:
-            if st.button("🧯 Predict Stockouts", key="predict_stockouts"):
+            if st.button("Predict Stockouts", key="predict_stockouts"):
                 with st.spinner("Calculating days until stockout..."):
                     try:
                         # Get inventory and sales velocity data
@@ -4020,13 +4147,13 @@ def render_advanced_analytics():
                         
                         stockout_df = execute_query_for_dashboard(sql)
                         if stockout_df is not None and not stockout_df.empty:
-                            st.success(f"✅ Stockout analysis complete!")
+                            st.success(f"Stockout analysis complete!")
                             st.dataframe(stockout_df, use_container_width=True)
                             
                             # Download option
                             csv_data = stockout_df.to_csv(index=False)
                             st.download_button(
-                                "📥 Download Stockout Predictions",
+                                "Download Stockout Predictions",
                                 csv_data,
                                 "stockout_predictions.csv",
                                 "text/csv",
@@ -4039,13 +4166,13 @@ def render_advanced_analytics():
     
     # Tab 2: Predictive Forecasting Engine
     with tab2:
-        st.markdown("### 📊 Predictive Forecasting Engine")
+        st.markdown("### Predictive Forecasting Engine")
         st.caption("Demand trends, seasonal patterns, and product lifecycle analysis")
         
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            if st.button("📈 Forecast Demand Trends", key="forecast_demand"):
+            if st.button("Forecast Demand Trends", key="forecast_demand"):
                 with st.spinner("Analyzing demand trends..."):
                     try:
                         # Simplified demand forecasting using SQL
@@ -4097,13 +4224,13 @@ def render_advanced_analytics():
                         
                         trends_df = execute_query_for_dashboard(sql)
                         if trends_df is not None and not trends_df.empty:
-                            st.success(f"✅ Demand trends analyzed!")
+                            st.success(f"Demand trends analyzed!")
                             st.dataframe(trends_df.head(10), use_container_width=True)
                             
                             # Download option
                             csv_data = trends_df.to_csv(index=False)
                             st.download_button(
-                                "📥 Download Demand Trends",
+                                "Download Demand Trends",
                                 csv_data,
                                 "demand_trends.csv",
                                 "text/csv",
@@ -4115,7 +4242,7 @@ def render_advanced_analytics():
                         st.error(f"Error forecasting demand: {e}")
         
         with col2:
-            if st.button("🌿 Identify Seasonal Products", key="identify_seasonal"):
+            if st.button("Identify Seasonal Products", key="identify_seasonal"):
                 with st.spinner("Analyzing seasonal patterns..."):
                     try:
                         # Simplified seasonal analysis using SQL
@@ -4163,13 +4290,13 @@ def render_advanced_analytics():
                         
                         seasonal_df = execute_query_for_dashboard(sql)
                         if seasonal_df is not None and not seasonal_df.empty:
-                            st.success(f"✅ Seasonal analysis complete!")
+                            st.success(f"Seasonal analysis complete!")
                             st.dataframe(seasonal_df.head(10), use_container_width=True)
                             
                             # Download option
                             csv_data = seasonal_df.to_csv(index=False)
                             st.download_button(
-                                "📥 Download Seasonal Analysis",
+                                "Download Seasonal Analysis",
                                 csv_data,
                                 "seasonal_products.csv",
                                 "text/csv",
@@ -4223,13 +4350,13 @@ def render_advanced_analytics():
                         
                         lifecycle_df = execute_query_for_dashboard(sql)
                         if lifecycle_df is not None and not lifecycle_df.empty:
-                            st.success(f"✅ Lifecycle analysis complete!")
+                            st.success(f"Lifecycle analysis complete!")
                             st.dataframe(lifecycle_df.head(10), use_container_width=True)
                             
                             # Download option
                             csv_data = lifecycle_df.to_csv(index=False)
                             st.download_button(
-                                "📥 Download Lifecycle Analysis",
+                                "Download Lifecycle Analysis",
                                 csv_data,
                                 "product_lifecycle.csv",
                                 "text/csv",
@@ -4269,13 +4396,13 @@ def render_advanced_analytics():
                         
                         patterns_df = execute_query_for_dashboard(sql)
                         if patterns_df is not None and not patterns_df.empty:
-                            st.success(f"✅ Shopping patterns analyzed!")
+                            st.success(f"Shopping patterns analyzed!")
                             st.dataframe(patterns_df.head(15), use_container_width=True)
                             
                             # Download option
                             csv_data = patterns_df.to_csv(index=False)
                             st.download_button(
-                                "📥 Download Shopping Patterns",
+                                "Download Shopping Patterns",
                                 csv_data,
                                 "shopping_patterns.csv",
                                 "text/csv",
@@ -4287,7 +4414,7 @@ def render_advanced_analytics():
                         st.error(f"Error analyzing patterns: {e}")
         
         with col2:
-            if st.button("🛍️ Perform Basket Analysis", key="basket_analysis"):
+            if st.button("Perform Basket Analysis", key="basket_analysis"):
                 with st.spinner("Analyzing product co-purchasing patterns..."):
                     try:
                         # Simplified basket analysis using SQL
@@ -4317,13 +4444,13 @@ def render_advanced_analytics():
                         
                         basket_df = execute_query_for_dashboard(sql)
                         if basket_df is not None and not basket_df.empty:
-                            st.success(f"✅ Basket analysis complete!")
+                            st.success(f"Basket analysis complete!")
                             st.dataframe(basket_df.head(15), use_container_width=True)
                             
                             # Download option
                             csv_data = basket_df.to_csv(index=False)
                             st.download_button(
-                                "📥 Download Basket Analysis",
+                                "Download Basket Analysis",
                                 csv_data,
                                 "basket_analysis.csv",
                                 "text/csv",
@@ -4382,13 +4509,13 @@ def render_advanced_analytics():
                         
                         segments_df = execute_query_for_dashboard(sql)
                         if segments_df is not None and not segments_df.empty:
-                            st.success(f"✅ Customer segmentation complete!")
+                            st.success(f"Customer segmentation complete!")
                             st.dataframe(segments_df.head(15), use_container_width=True)
                             
                             # Download option
                             csv_data = segments_df.to_csv(index=False)
                             st.download_button(
-                                "📥 Download Customer Segments",
+                                "Download Customer Segments",
                                 csv_data,
                                 "customer_segments.csv",
                                 "text/csv",
@@ -4446,13 +4573,13 @@ def render_advanced_analytics():
                         for _, row in df_low_stock.iterrows():
                             alerts.append({
                                 "type": "WARNING",
-                                "icon": "⚠️",
+                                "icon": "Warning",
                                 "message": f"LOW STOCK: {row['product_name']} at {row['store_name']} ({int(row['quantity_on_hand'])} left)",
                                 "action": "Consider restocking soon"
                             })
                     
                     if alerts:
-                        st.success(f"✅ Found {len(alerts)} active alerts!")
+                        st.success(f"Found {len(alerts)} active alerts!")
                         
                         for alert in alerts:
                             with st.container(border=True):
@@ -4460,16 +4587,16 @@ def render_advanced_analytics():
                                 st.write(alert['message'])
                                 st.caption(f"Action: {alert['action']}")
                     else:
-                        st.info("✅ No active alerts at this time.")
+                        st.info("No active alerts at this time.")
                 except Exception as e:
                     st.error(f"Error retrieving alerts: {e}")
     
     # Tab 5: Automated Insight Engine
     with tab5:
-        st.markdown("### 🤖 Automated Insight Engine")
+        st.markdown("### Automated Insight Engine")
         st.caption("AI-powered weekly business reviews and insights")
         
-        if st.button("📊 Generate Weekly Business Review", key="generate_review"):
+        if st.button("Generate Weekly Business Review", key="generate_review"):
             with st.spinner("Generating AI-powered business review..."):
                 try:
                     # Simplified weekly business review using SQL and AI
@@ -4519,7 +4646,7 @@ def render_advanced_analytics():
                                 review_summary = response.content[0].text
                             except Exception:
                                 review_summary = f"""
-                                **📊 Weekly Business Review**
+                                **Weekly Business Review**
                                 
                                 **Performance Summary:**
                                 - Current Week Sales: ₱{metrics['current_week_sales']:,.0f}
@@ -4539,7 +4666,7 @@ def render_advanced_analytics():
                                 """
                         else:
                             review_summary = f"""
-                            **📊 Weekly Business Review**
+                            **Weekly Business Review**
                             
                             **Performance Summary:**
                             - Current Week Sales: ₱{metrics['current_week_sales']:,.0f}
@@ -4558,11 +4685,11 @@ def render_advanced_analytics():
                             - Review inventory levels
                             """
                         
-                        st.success("✅ Weekly business review generated!")
+                        st.success("Weekly business review generated!")
                         st.markdown(review_summary)
                         
                         # Display metrics
-                        st.markdown("**📈 Key Metrics:**")
+                        st.markdown("**Key Metrics:**")
                         col1, col2, col3, col4 = st.columns(4)
                         with col1:
                             st.metric("Current Week Sales", f"₱{metrics['current_week_sales']:,.0f}")
@@ -4575,7 +4702,7 @@ def render_advanced_analytics():
                         
                         # Download option
                         st.download_button(
-                            "📥 Download Business Review",
+                            "Download Business Review",
                             review_summary,
                             f"weekly_business_review_{datetime.now().strftime('%Y%m%d')}.md",
                             "text/markdown",
@@ -4588,10 +4715,10 @@ def render_advanced_analytics():
 
 # Enhanced Chat Page with Assistant
 def render_chat():
-    st.markdown('<div class="main-header"><h1>🧠 SupaBot AI Assistant</h1><p>Ask ANYTHING about your data - I learn from your feedback!</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header"><h1>SupaBot AI Assistant</h1><p>Ask ANYTHING about your data - I learn from your feedback!</p></div>', unsafe_allow_html=True)
 
     if st.session_state.schema_info is None:
-        with st.spinner("🔍 Learning about your database..."):
+        with st.spinner("Learning about your database..."):
             st.session_state.schema_info = get_database_schema()
 
     for i, message in enumerate(st.session_state.messages):
@@ -4602,14 +4729,14 @@ def render_chat():
                 st.markdown(f'<div class="ai-message">{message["interpretation"]}</div>', unsafe_allow_html=True)
             
             if message.get("sql"):
-                with st.expander("🔍 SQL Query & Training", expanded=False):
+                with st.expander("SQL Query & Training", expanded=False):
                     st.code(message["sql"], language="sql")
                     
                     st.markdown("**Was this SQL correct?**")
                     col1, col2, col3 = st.columns([1, 1, 3])
                     
                     with col1:
-                        if st.button("✅ Correct", key=f"correct_{i}"):
+                        if st.button("Correct", key=f"correct_{i}"):
                             explanation = st.text_input(
                                 "Why was this correct?",
                                 placeholder="e.g., Perfect grouping for hourly totals",
@@ -4621,13 +4748,13 @@ def render_chat():
                                 "correct", 
                                 explanation
                             ):
-                                st.success("✅ Saved as correct example!")
+                                st.success("Saved as correct example!")
                             else:
-                                st.error("❌ Failed to save")
+                                st.error("Failed to save")
                             st.rerun()
                     
                     with col2:
-                        if st.button("❌ Wrong", key=f"wrong_{i}"):
+                        if st.button("Wrong", key=f"wrong_{i}"):
                             st.session_state[f"show_correction_{i}"] = True
                             st.rerun()
                     
@@ -4653,9 +4780,9 @@ def render_chat():
                                 "corrected", 
                                 explanation
                             ):
-                                st.success("✅ Correction saved!")
+                                st.success("Correction saved!")
                             else:
-                                st.error("❌ Failed to save correction")
+                                st.error("Failed to save correction")
                             st.session_state[f"show_correction_{i}"] = False
                             st.rerun()
             
@@ -4664,7 +4791,7 @@ def render_chat():
                 if isinstance(results, pd.DataFrame) and not results.empty:
                     # Apply dynamic formatting to the dataframe
                     column_config = get_column_config(results)
-                    with st.expander(f"📊 View Data ({len(results)} rows)", expanded=False): 
+                    with st.expander(f"View Data ({len(results)} rows)", expanded=False): 
                         st.dataframe(results, column_config=column_config, use_container_width=True, hide_index=True)
                     if message.get("chart"): 
                         st.plotly_chart(message["chart"], use_container_width=True)
@@ -4672,35 +4799,37 @@ def render_chat():
                 st.error(message["error"])
 
     if not st.session_state.messages:
-        st.markdown("### 💡 Example Questions You Can Ask:")
+        st.markdown("### Example Questions You Can Ask:")
+        st.markdown('<div class="ai-examples-container">', unsafe_allow_html=True)
         c1, c2 = st.columns(2)
-        c1.markdown("**🎯 Enhanced Chart Examples:**")
+        c1.markdown("**Enhanced Chart Examples:**")
         c1.markdown("- **Pie Chart**: 'Sales distribution by category'")
         c1.markdown("- **Treemap**: 'Product revenue hierarchy'")
         c1.markdown("- **Scatter Plot**: 'Revenue vs quantity relationship'")
         c1.markdown("- **Line Chart**: 'Sales trend over time'")
         
-        c2.markdown("**📊 Business Questions:**")
+        c2.markdown("**Business Questions:**")
         c2.markdown("- **Performance**: 'Top 10 products by revenue'")
         c2.markdown("- **Time Analysis**: 'Sales per hour total of all stores'")
         c2.markdown("- **Inventory**: 'Which products are almost out of stock?'")
         c2.markdown("- **Correlation**: 'Is there a relationship between price and sales?'")
+        st.markdown('</div>', unsafe_allow_html=True)
         
         # Show training system status
         if len(st.session_state.training_system.training_data) > 0:
-            st.info(f"🎓 Training System Active: {len(st.session_state.training_system.training_data)} examples learned")
+            st.info(f"Training System Active: {len(st.session_state.training_system.training_data)} examples learned")
 
     # Updated chat input with training system
     if prompt := st.chat_input("Ask me anything about your data..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.spinner("🧠 Thinking with training data..."):
+        with st.spinner("Thinking with training data..."):
             # Pass training system to SQL generation
             sql = generate_smart_sql(prompt, st.session_state.schema_info, st.session_state.training_system)
             if sql:
-                with st.spinner("📊 Analyzing your data..."):
+                with st.spinner("Analyzing your data..."):
                     results = execute_query_for_assistant(sql)
                 if results is not None:
-                    with st.spinner("💡 Generating insights & smart visualization..."):
+                    with st.spinner("Generating insights & smart visualization..."):
                         interpretation = interpret_results(prompt, results, sql)
                         chart = create_smart_visualization(results, prompt)
                     st.session_state.messages.append({
@@ -4911,7 +5040,7 @@ def get_chart_view_data(time_range, metric_type, granularity, filters, store_fil
 
 def render_chart_view():
     """Render the enhanced Chart View page with multi-select, live search, and comparison."""
-    st.markdown('<div class="main-header"><h1>📈 Chart View</h1><p>Deep dive analytics with interactive visualizations</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header"><h1>Chart View</h1><p>Deep dive analytics with interactive visualizations</p></div>', unsafe_allow_html=True)
 
     # --- Session State Initialization ---
     if 'cv_time' not in st.session_state: st.session_state.cv_time = "7d"
@@ -4923,23 +5052,35 @@ def render_chart_view():
     filter_options = get_filter_options()
 
     # --- Time Period Selector ---
-    st.markdown("### ⏱️ Time Period")
+    st.markdown("### Time Period")
     time_ranges = ["1d", "7d", "1m", "3m", "6m", "1y"]
     current_time_index = time_ranges.index(st.session_state.cv_time) if st.session_state.cv_time in time_ranges else 1
-    st.session_state.cv_time = st.radio("", time_ranges, index=current_time_index, horizontal=True, key="time_range_selector")
+    st.markdown('<div class="time-period-selector">', unsafe_allow_html=True)
+    selected_cv_time = st.radio("", time_ranges, index=current_time_index, horizontal=True, key="time_range_selector")
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Update session state only if selection changed
+    if selected_cv_time != st.session_state.cv_time:
+        st.session_state.cv_time = selected_cv_time
     
     # --- Main Controls ---
-    st.markdown("### 🎛️ Analytics Controls")
+    st.markdown("### Analytics Controls")
     with st.expander("Debug", expanded=False):
         st.checkbox("Show Chart SQL", key="debug_chart_sql")
     
-    st.markdown('<div class="filter-container">', unsafe_allow_html=True)
+    st.markdown('<div class="filter-container chart-view-filters">', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     with c1:
-        st.selectbox("Analyze by", ["Stores", "Product Categories", "Products", "Avg Transaction Value"], key="cv_metric_type")
+        selected_metric_type = st.selectbox("Analyze by", ["Stores", "Product Categories", "Products", "Avg Transaction Value"], key="cv_metric_type")
+        # Update session state only if selection changed
+        if selected_metric_type != st.session_state.cv_metric_type:
+            st.session_state.cv_metric_type = selected_metric_type
     with c2:
         # Do not set a default index when using a session-state-backed key to avoid Streamlit warning
-        st.selectbox("Time Granularity", ["Minute", "Hour", "Day", "Week", "Month"], key="cv_granularity")
+        selected_granularity = st.selectbox("Time Granularity", ["Minute", "Hour", "Day", "Week", "Month"], key="cv_granularity")
+        # Update session state only if selection changed
+        if selected_granularity != st.session_state.cv_granularity:
+            st.session_state.cv_granularity = selected_granularity
 
     st.markdown('</div>', unsafe_allow_html=True)  # Close filter-container
     
@@ -4956,7 +5097,7 @@ def render_chart_view():
                 st.markdown(f"**{label}**")
             with cols[1]:
                 if not is_primary:
-                    if st.button(f"❌ Remove", key=f"remove_{i}"):
+                    if st.button(f"Remove", key=f"remove_{i}"):
                         st.session_state.comparison_sets.pop(i)
                         st.rerun()
 
@@ -4969,20 +5110,26 @@ def render_chart_view():
                     "Select Store(s)", options=filter_options["stores"],
                     default=current_filters.get("stores", []), placeholder="All Stores", key=f"stores_{i}"
                 )
-                st.session_state.comparison_sets[i]['stores'] = selected_stores
+                # Update session state only if selection changed
+                if selected_stores != current_filters.get("stores", []):
+                    st.session_state.comparison_sets[i]['stores'] = selected_stores
             
             # Metric-specific filters
             metric_filters = []
             if st.session_state.cv_metric_type in ["Stores", "Avg Transaction Value"]:
                 label = "Select Store(s) to Plot" if st.session_state.cv_metric_type == "Stores" else "Select Store(s) for Avg. Transaction Value"
                 selected = st.multiselect(label, filter_options["stores"], default=current_filters.get("filters", []), key=f"filters_{i}")
-                st.session_state.comparison_sets[i]['filters'] = selected
+                # Update session state only if selection changed
+                if selected != current_filters.get("filters", []):
+                    st.session_state.comparison_sets[i]['filters'] = selected
                 if selected: metric_filters.extend(selected)
             
             elif st.session_state.cv_metric_type == "Product Categories":
                 category_options = ["All"] + filter_options["categories"]
                 selected_cats = st.multiselect("Select Product Category(s)", category_options, default=current_filters.get("filters_with_all", []), key=f"filters_{i}")
-                st.session_state.comparison_sets[i]['filters_with_all'] = selected_cats
+                # Update session state only if selection changed
+                if selected_cats != current_filters.get("filters_with_all", []):
+                    st.session_state.comparison_sets[i]['filters_with_all'] = selected_cats
 
                 if "All" in selected_cats:
                     final_selected_cats = filter_options["categories"]
@@ -4998,14 +5145,18 @@ def render_chart_view():
                     "Filter by Product Category", options=filter_options["categories"],
                     default=current_filters.get("prod_categories", []), key=f"prod_cat_filter_{i}"
                 )
-                st.session_state.comparison_sets[i]['prod_categories'] = selected_prod_categories
+                # Update session state only if selection changed
+                if selected_prod_categories != current_filters.get("prod_categories", []):
+                    st.session_state.comparison_sets[i]['prod_categories'] = selected_prod_categories
                 
                 available_products = get_products_by_categories(selected_prod_categories)
                 
                 # Add "All Products" option to the product selector
                 product_options = ["All Products"] + available_products
                 selected_products_input = st.multiselect("Select Product(s)", product_options, default=current_filters.get("product_selection", []), key=f"filters_{i}")
-                st.session_state.comparison_sets[i]['product_selection'] = selected_products_input
+                # Update session state only if selection changed
+                if selected_products_input != current_filters.get("product_selection", []):
+                    st.session_state.comparison_sets[i]['product_selection'] = selected_products_input
                 
                 # Process the selection
                 if "All Products" in selected_products_input:
@@ -5037,7 +5188,7 @@ def render_chart_view():
                         data_subset['set_index'] = i
                         all_data_frames.append(data_subset)
 
-    if st.button("🆚 Add Comparison"):
+    if st.button("Add Comparison"):
         st.session_state.comparison_sets.append({})
         st.rerun()
 
@@ -5082,7 +5233,7 @@ def render_chart_view():
             pass
 
     # --- Visualization with advanced styling ---
-    y_axis_title = "💰 Revenue (PHP)"
+    y_axis_title = "Revenue (PHP)"
     chart_title = "Revenue Comparison"
     if st.session_state.cv_metric_type == "Avg Transaction Value":
         y_axis_title = "💳 Avg Transaction Value (PHP)"
@@ -5181,7 +5332,7 @@ def render_chart_view():
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    with st.expander("📋 View Detailed Data"):
+    with st.expander("View Detailed Data"):
         st.dataframe(data, use_container_width=True, hide_index=True)
 
 class DailyInsightsGenerator:
@@ -5304,7 +5455,7 @@ class SmartAlertManager:
         for _, row in df_low_stock.iterrows():
             alerts.append({
                 "type": "WARNING",
-                "icon": "⚠️",
+                "icon": "Warning",
                 "message": f"LOW STOCK: {row['product_name']} at {row['store_name']} ({int(row['quantity_on_hand'])} left)",
                 "action": "Consider restocking soon"
             })
@@ -5582,7 +5733,7 @@ class AutomatedInsightEngine:
     def generate_weekly_business_review(self):
         """Generate weekly business review"""
         return {
-            "summary": "📊 **Weekly Business Review**\n\n• Sales performance tracking active\n• Customer behavior analysis in progress\n• Market trend monitoring enabled\n\n*Full AI insights available with complete analytics setup*",
+            "summary": "**Weekly Business Review**\n\n• Sales performance tracking active\n• Customer behavior analysis in progress\n• Market trend monitoring enabled\n\n*Full AI insights available with complete analytics setup*",
             "metrics": {
                 "current_week_sales": 100000,
                 "previous_week_sales": 95000,
@@ -5725,11 +5876,11 @@ class PerformanceOptimizationEngine:
 
 def render_enhanced_analytics_tab(analytics_engine, forecasting_engine):
     """ENHANCED Analytics Tab with forecasting"""
-    st.header("📊 Enhanced Analytics Suite")
+    st.header("Enhanced Analytics Suite")
     
     # EXISTING functionality
-    st.subheader("🔍 Hidden Demand Detection")
-    st.info("💡 Identifies products that would sell more if they were in stock")
+    st.subheader("Hidden Demand Detection")
+    st.info("Identifies products that would sell more if they were in stock")
     if st.button("Analyze Hidden Demand", key="hd_btn"):
         with st.spinner("Analyzing sales patterns and inventory levels..."):
             hidden_demand_df = analytics_engine.detect_hidden_demand()
@@ -5744,7 +5895,7 @@ def render_enhanced_analytics_tab(analytics_engine, forecasting_engine):
     
     st.markdown("---")
     st.subheader("⏰ Stockout Predictions")
-    st.info("🎯 Predicts when products will run out of stock")
+    st.info("Predicts when products will run out of stock")
     if st.button("Predict Stockouts", key="so_btn"):
         with st.spinner("Calculating stockout predictions..."):
             stockout_df = analytics_engine.predict_stockouts()
@@ -5761,7 +5912,7 @@ def render_enhanced_analytics_tab(analytics_engine, forecasting_engine):
     # NEW ADDITIONS:
     st.markdown("---")
     st.subheader("🔮 Demand Forecasting")
-    st.info("🎯 Predicts future demand trends with confidence scoring")
+    st.info("Predicts future demand trends with confidence scoring")
     if st.button("🔮 Generate Demand Forecasts", type="primary"):
         with st.spinner("Analyzing historical patterns and generating forecasts..."):
             forecast_df = forecasting_engine.forecast_demand_trends()
@@ -5780,9 +5931,9 @@ def render_enhanced_analytics_tab(analytics_engine, forecasting_engine):
                 st.info("Insufficient historical data for forecasting.")
 
     st.markdown("---")
-    st.subheader("🌿 Seasonal Intelligence")
+    st.subheader("Seasonal Intelligence")
     st.info("📅 Identifies seasonal products and upcoming seasonal changes")
-    if st.button("🌿 Analyze Seasonal Patterns", type="primary"):
+    if st.button("Analyze Seasonal Patterns", type="primary"):
         with st.spinner("Identifying seasonal patterns..."):
             seasonal_df = forecasting_engine.identify_seasonal_products()
             if not seasonal_df.empty:
@@ -5799,22 +5950,22 @@ def render_predictive_intelligence_tab(forecasting_engine, market_engine):
     st.header("🔮 Predictive Intelligence")
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("📈 Product Lifecycle Analysis")
+        st.subheader("Product Lifecycle Analysis")
         if st.button("Analyze Product Lifecycles"):
             with st.spinner("Analyzing product lifecycles..."):
                 lifecycle_df = forecasting_engine.analyze_product_lifecycle()
                 if not lifecycle_df.empty:
                     st.dataframe(lifecycle_df, use_container_width=True)
     with col2:
-        st.subheader("💰 Price Optimization")
+        st.subheader("Price Optimization")
         if st.button("Analyze Price Elasticity"):
             with st.spinner("Calculating optimal pricing..."):
                 pricing_df = market_engine.analyze_price_elasticity()
                 if not pricing_df.empty:
                     st.dataframe(pricing_df, use_container_width=True)
     st.markdown("---")
-    st.subheader("🎯 Market Opportunities")
-    if st.button("🎯 Detect Market Opportunities", type="primary"):
+    st.subheader("Market Opportunities")
+    if st.button("Detect Market Opportunities", type="primary"):
         with st.spinner("Scanning for market opportunities..."):
             opportunities_df = market_engine.detect_market_opportunities()
             if not opportunities_df.empty:
@@ -5822,10 +5973,10 @@ def render_predictive_intelligence_tab(forecasting_engine, market_engine):
 
 def render_customer_intelligence_tab(customer_engine):
     """NEW: Customer Intelligence Tab"""
-    st.header("🎯 Customer Intelligence")
-    tab1, tab2, tab3 = st.tabs(["🛒 Shopping Patterns", "🛍️ Basket Analysis", "👥 Customer Segments"])
+    st.header("Customer Intelligence")
+    tab1, tab2, tab3 = st.tabs(["Shopping Patterns", "Basket Analysis", "Customer Segments"])
     with tab1:
-        st.subheader("🛒 Shopping Pattern Analysis")
+        st.subheader("Shopping Pattern Analysis")
         if st.button("Analyze Shopping Patterns"):
             with st.spinner("Analyzing customer shopping patterns..."):
                 patterns_df = customer_engine.analyze_shopping_patterns()
@@ -5837,7 +5988,7 @@ def render_customer_intelligence_tab(customer_engine):
                         st.plotly_chart(fig, use_container_width=True)
                     st.dataframe(patterns_df, use_container_width=True)
     with tab2:
-        st.subheader("🛍️ Market Basket Analysis")
+        st.subheader("Market Basket Analysis")
         if st.button("Perform Basket Analysis"):
             with st.spinner("Analyzing product associations..."):
                 basket_df = customer_engine.perform_basket_analysis()
@@ -5853,9 +6004,9 @@ def render_customer_intelligence_tab(customer_engine):
 
 def render_automated_insights_tab(insight_engine):
     """NEW: Automated Insights Tab"""
-    st.header("💡 Automated Business Intelligence")
-    st.subheader("📊 Weekly Business Review")
-    if st.button("📊 Generate Weekly Review", type="primary"):
+    st.header("Automated Business Intelligence")
+    st.subheader("Weekly Business Review")
+    if st.button("Generate Weekly Review", type="primary"):
         with st.spinner("Generating comprehensive business review..."):
             review = insight_engine.generate_weekly_business_review()
             if review:
@@ -5882,10 +6033,10 @@ def render_smart_alerts_tab(alert_manager, insight_engine):
             st.error(f"**🚨 {len(critical_alerts)} Critical Alerts**")
             for alert in critical_alerts: st.markdown(f"- **{alert['icon']} {alert['message']}**: {alert['action']}")
         if warning_alerts:
-            st.warning(f"**⚠️ {len(warning_alerts)} Warning Alerts**")
+            st.warning(f"**{len(warning_alerts)} Warning Alerts**")
             for alert in warning_alerts: st.markdown(f"- **{alert['icon']} {alert['message']}**: {alert['action']}")
     else:
-        st.success("✅ No active real-time alerts.")
+        st.success("No active real-time alerts.")
         
     st.markdown("---")
     st.subheader("🔮 Predictive Alerts")
@@ -5893,19 +6044,19 @@ def render_smart_alerts_tab(alert_manager, insight_engine):
         predictive_alerts = insight_engine.create_predictive_alerts()
         if predictive_alerts:
             for alert in predictive_alerts:
-                if alert['type'] == 'TRENDING_UP': st.success(f"📈 {alert['message']}")
-                elif alert['type'] == 'SEASONAL_PREP': st.info(f"🌿 {alert['message']}")
+                if alert['type'] == 'TRENDING_UP': st.success(f"{alert['message']}")
+                elif alert['type'] == 'SEASONAL_PREP': st.info(f"{alert['message']}")
                 elif alert['type'] == 'OPPORTUNITY': st.warning(f"� {alert['message']}")
-                else: st.info(f"💡 {alert['message']}")
+                else: st.info(f"{alert['message']}")
         else:
-            st.success("✅ No predictive alerts at this time.")
+            st.success("No predictive alerts at this time.")
 
 def render_ai_learning_tab():
     """AI Learning Tab Content"""
     st.header("🎓 AI Learning Center")
     if 'training_system' in st.session_state:
         training_data = st.session_state.training_system.training_data
-        st.subheader("📊 Learning Progress")
+        st.subheader("Learning Progress")
         col1, col2, col3 = st.columns(3)
         with col1: st.metric("Total Examples", len(training_data))
         with col2: st.metric("Correct Examples", len([ex for ex in training_data if ex.get("feedback") == "correct"]))
@@ -5919,7 +6070,7 @@ def render_ai_learning_tab():
                 fig = px.line(daily_learning, x='date', y='examples', title='Daily Learning Progress', markers=True)
                 fig.update_layout(template="plotly_dark", plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig, use_container_width=True)
-        st.subheader("📝 Recent Training Examples")
+        st.subheader("Recent Training Examples")
         if training_data:
             for ex in reversed(training_data[-5:]):
                 with st.expander(f"Q: {ex['question'][:50]}..."):
@@ -5929,18 +6080,18 @@ def render_ai_learning_tab():
 
 def render_settings():
     """Settings page for configuration and system status"""
-    st.markdown('<div class="main-header"><h1>⚙️ Settings</h1><p>System configuration and database management</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header"><h1>Settings</h1><p>System configuration and database management</p></div>', unsafe_allow_html=True)
     
-    tab1, tab2, tab3 = st.tabs(["🔧 System Status", "🗄️ Database Info", "🎨 UI Settings"])
+    tab1, tab2, tab3 = st.tabs(["System Status", "Database Info", "UI Settings"])
     
     with tab1:
-        st.subheader("📊 System Status")
+        st.subheader("System Status")
         
         # Database connection status
         try:
             conn = create_db_connection()
             if conn:
-                st.success("✅ Database: Connected")
+                st.success("Database: Connected")
                 
                 cursor = conn.cursor()
                 cursor.execute("SELECT COUNT(*) FROM transactions")
@@ -5957,28 +6108,28 @@ def render_settings():
                 
                 conn.close()
             else:
-                st.error("❌ Database: Connection Failed")
+                st.error("Database: Connection Failed")
         except Exception as e:
-            st.error(f"❌ Database Error: {e}")
+            st.error(f"Database Error: {e}")
         
         # AI Status
         try:
             claude_client = get_claude_client()
             if claude_client:
-                st.success("✅ AI Assistant: Available")
+                st.success("AI Assistant: Available")
             else:
-                st.error("❌ AI Assistant: API Key Missing")
+                st.error("AI Assistant: API Key Missing")
         except Exception as e:
-            st.error(f"❌ AI Assistant Error: {e}")
+            st.error(f"AI Assistant Error: {e}")
     
     with tab2:
-        st.subheader("🗄️ Database Schema")
+        st.subheader("Database Schema")
         
         if st.button("Load Database Schema"):
             schema_info = get_database_schema()
             if schema_info:
                 for table_name, table_info in schema_info.items():
-                    with st.expander(f"📋 Table: {table_name} ({table_info['row_count']:,} rows)"):
+                    with st.expander(f"Table: {table_name} ({table_info['row_count']:,} rows)"):
                         st.write("**Columns:**")
                         for col_name, col_type, nullable, default in table_info['columns']:
                             null_text = "NULL" if nullable == "YES" else "NOT NULL"
@@ -5988,10 +6139,10 @@ def render_settings():
                 st.error("Failed to load database schema")
     
     with tab3:
-        st.subheader("🎨 User Interface Settings")
+        st.subheader("User Interface Settings")
         
         # Debug Mode Toggle
-        st.subheader("🔍 Debug Settings")
+        st.subheader("Debug Settings")
         debug_mode = st.checkbox(
             "Enable Debug Mode", 
             value=st.session_state.get('debug_mode', False),
@@ -6000,33 +6151,33 @@ def render_settings():
         st.session_state.debug_mode = debug_mode
         
         if debug_mode:
-            st.success("✅ Debug mode enabled - detailed information will be shown on the dashboard")
+            st.success("Debug mode enabled - detailed information will be shown on the dashboard")
         else:
             st.info("Debug mode disabled - dashboard will show standard interface")
         
         st.markdown("---")
         
         # Clear cache
-        if st.button("🗑️ Clear Cache"):
+        if st.button("Clear Cache"):
             st.cache_data.clear()
-            st.success("✅ Cache cleared successfully")
+            st.success("Cache cleared successfully")
         
         # Reset session state
-        if st.button("🔄 Reset Session"):
+        if st.button("Reset Session"):
             for key in list(st.session_state.keys()):
                 if key not in ['current_page']:  # Keep current page
                     del st.session_state[key]
-            st.success("✅ Session reset successfully")
+            st.success("Session reset successfully")
         
         st.markdown("---")
-        st.subheader("📖 Application Info")
+        st.subheader("Application Info")
         st.write("**Version:** SupaBot v3.8")
         st.write("**Framework:** Streamlit + PostgreSQL + Claude AI")
         st.write("**Architecture:** Modular Production-Ready")
 
 def render_ai_intelligence_hub():
     """New Intelligence page replacing old AI Hub: six sections, Manila TZ, cached SQL, Plotly dark."""
-    st.markdown('<div class="main-header"><h1>🤖 AI Intelligence Hub</h1><p>Executive insights, demand signals, forecasts, and risk radar</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header"><h1>AI Intelligence Hub</h1><p>Executive insights, demand signals, forecasts, and risk radar</p></div>', unsafe_allow_html=True)
 
     # Reuse global filters
     time_filter = st.session_state.get("dashboard_time_filter", "7D")
@@ -6042,7 +6193,7 @@ def render_ai_intelligence_hub():
 
     # 1) Executive Briefing
     with st.container(border=True):
-        st.markdown("### 🧠 Executive Briefing (Auto-Analyst)")
+        st.markdown("### Executive Briefing (Auto-Analyst)")
         briefing_md = generate_exec_briefing(time_filter, store_filter_ids)
         st.markdown(briefing_md)
         c1, c2, c3 = st.columns(3)
@@ -6053,13 +6204,13 @@ def render_ai_intelligence_hub():
                 st.markdown(enhance_briefing_with_llm(briefing_md))
         with c3:
             if hasattr(settings, 'get_n8n_webhook_url') and settings.get_n8n_webhook_url():
-                if st.button("✉️ Email Briefing"):
+                if st.button("Email Briefing"):
                     send_briefing_email(briefing_md)
                     st.success("Queued email for delivery")
 
     # 2) Hidden Demand Detection
     with st.container(border=True):
-        st.markdown("### 🧠 Hidden Demand — Don't Forget To Send")
+        st.markdown("### Hidden Demand — Don't Forget To Send")
         
         WAREHOUSE_STORE_IDS = None  # e.g. [1001, 1002] if warehouses are modeled as stores
         hd_df = get_hidden_demand(store_filter_ids, WAREHOUSE_STORE_IDS)
@@ -6086,19 +6237,19 @@ def render_ai_intelligence_hub():
 
     # 3) Stockout Predictions
     with st.container(border=True):
-        st.markdown("### 🧯 Stockout Predictions")
+        st.markdown("### Stockout Predictions")
         st.caption("Predict when SKU×Store will stock out based on avg daily demand and inbound ≤7d")
         if st.button("Predict Stockouts", key="btn_predict_stockouts"):
             so_df = stockout_predictions(store_filter_ids)
             if so_df is not None and not so_df.empty:
                 st.dataframe(so_df, use_container_width=True, hide_index=True)
-                st.download_button("⬇️ CSV", data=so_df.to_csv(index=False), file_name="stockout_predictions.csv")
+                st.download_button("Download CSV", data=so_df.to_csv(index=False), file_name="stockout_predictions.csv")
             else:
                 st.info("No imminent stockouts detected.")
 
     # 4) Demand Forecasting
     with st.container(border=True):
-        st.markdown("### 📊 Demand Forecasting")
+        st.markdown("### Demand Forecasting")
         st.caption("Forecast next 7/30/90 days; aggregate to warehouse/supplier where available")
         if st.button("Generate Demand Forecasts", key="btn_generate_forecasts"):
             fc = demand_forecasts(store_filter_ids)
@@ -6106,15 +6257,15 @@ def render_ai_intelligence_hub():
                 tabs = st.tabs(["Store", "Warehouse", "Supplier"])
                 with tabs[0]:
                     st.dataframe(fc['store_view'], use_container_width=True, hide_index=True)
-                    st.download_button("⬇️ CSV", data=fc['store_view'].to_csv(index=False), file_name="forecast_store.csv")
+                    st.download_button("Download CSV", data=fc['store_view'].to_csv(index=False), file_name="forecast_store.csv")
                 if fc.get('warehouse_view') is not None:
                     with tabs[1]:
                         st.dataframe(fc['warehouse_view'], use_container_width=True, hide_index=True)
-                        st.download_button("⬇️ CSV", data=fc['warehouse_view'].to_csv(index=False), file_name="forecast_warehouse.csv")
+                        st.download_button("Download CSV", data=fc['warehouse_view'].to_csv(index=False), file_name="forecast_warehouse.csv")
                 if fc.get('supplier_view') is not None:
                     with tabs[2]:
                         st.dataframe(fc['supplier_view'], use_container_width=True, hide_index=True)
-                        st.download_button("⬇️ CSV", data=fc['supplier_view'].to_csv(index=False), file_name="forecast_supplier.csv")
+                        st.download_button("Download CSV", data=fc['supplier_view'].to_csv(index=False), file_name="forecast_supplier.csv")
                 top = fc['store_view'].nlargest(20, 'D+30')
                 fig = px.bar(top, x="sku", y="D+30", color="D+30")
                 fig.update_layout(template="plotly_dark", margin=dict(t=10,l=10,r=10,b=10), showlegend=False, height=400)
@@ -6124,13 +6275,13 @@ def render_ai_intelligence_hub():
 
     # 5) Seasonal Intelligence
     with st.container(border=True):
-        st.markdown("### 🌿 Seasonal Intelligence")
+        st.markdown("### Seasonal Intelligence")
         st.caption("Detect seasonal SKUs and upcoming peaks")
         if st.button("Analyze Seasonal Patterns", key="btn_analyze_seasonal"):
             seas = seasonal_intelligence(store_filter_ids)
             if seas is not None and not seas.empty:
                 st.dataframe(seas, use_container_width=True, hide_index=True)
-                st.download_button("⬇️ CSV", data=seas.to_csv(index=False), file_name="seasonal_intelligence.csv")
+                st.download_button("Download CSV", data=seas.to_csv(index=False), file_name="seasonal_intelligence.csv")
             else:
                 st.info("No strong seasonality detected.")
 
@@ -6145,7 +6296,7 @@ def render_ai_intelligence_hub():
                 df = risks.get(key)
                 if df is not None and not df.empty:
                     st.dataframe(df, use_container_width=True, hide_index=True)
-                    st.download_button("⬇️ CSV", data=df.to_csv(index=False), file_name=f"inventory_risk_{key}.csv")
+                    st.download_button("Download CSV", data=df.to_csv(index=False), file_name=f"inventory_risk_{key}.csv")
                 else:
                     st.info("No items in this category.")
 
@@ -6355,7 +6506,7 @@ def get_hidden_demand(store_filter_ids=None, warehouse_ids=None):
 
 def render_product_sales_report():
     """Render the Product Sales Report."""
-    st.markdown('<div class="main-header"><h1>📊 Product Sales Report</h1><p>Advanced sales analytics</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header"><h1>Product Sales Report</h1><p>Advanced sales analytics</p></div>', unsafe_allow_html=True)
     
     # Get store list
     store_df = get_store_list()
@@ -6366,8 +6517,8 @@ def render_product_sales_report():
     store_options = {row.name: row.id for row in store_df.itertuples()}
     store_names = list(store_options.keys())
     
-    st.markdown("### 🎛️ Report Configuration")
-    st.markdown('<div class="filter-container">', unsafe_allow_html=True)
+    st.markdown("### Report Configuration")
+    st.markdown('<div class="filter-container product-sales-filters">', unsafe_allow_html=True)
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         primary_store = st.selectbox("Primary Store", store_names, index=0)
@@ -6381,7 +6532,7 @@ def render_product_sales_report():
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-    if st.button("🚀 Generate Report", type="primary", use_container_width=True):
+    if st.button("Generate Report", type="primary", use_container_width=True):
         if start_date > end_date:
             st.error("Start date cannot be after end date")
             return
@@ -6434,32 +6585,34 @@ def render_product_sales_report():
                 "start_date": start_date,
                 "end_date": end_date,
             }
-        st.success(f"✅ Report generated with {len(df)} products!")
+        st.success(f"Report generated with {len(df)} products!")
     
     if "report_df" in st.session_state:
         df = st.session_state["report_df"]
         params = st.session_state["report_params"]
         
         st.markdown("---")
-        st.subheader("📈 Product Sales Analysis")
+        st.subheader("Product Sales Analysis")
         
+        st.markdown('<div class="product-sales-header">', unsafe_allow_html=True)
         head1, head2 = st.columns([3, 1])
         with head1:
             st.markdown(f"**Primary:** `{params['primary_store']}` | **Comparison:** `{params['comparison_store']}` | **Period:** `{params['start_date']}` to `{params['end_date']}`")
         with head2:
             csv = df.to_csv(index=False)
             st.download_button(
-                "📥 Download CSV",
+                "Download CSV",
                 csv,
                 f"{params['primary_store']}_Sales_{params['start_date']}.csv",
                 "text/csv",
                 use_container_width=True,
             )
+        st.markdown('</div>', unsafe_allow_html=True)
         
         # Display by category
         for category in sorted(df["category"].unique()):
             category_df = df[df["category"] == category]
-            with st.expander(f"📦 {category} ({len(category_df)} products)", expanded=True):
+            with st.expander(f"{category} ({len(category_df)} products)", expanded=True):
                 st.dataframe(
                     category_df[["product_name", "sku", "product_id", "quantity_sold", "primary_store_inventory", "comparison_store_inventory"]],
                     column_config={
@@ -6478,30 +6631,30 @@ def render_product_sales_report():
 
 def render_settings():
     """Render the Settings page."""
-    st.markdown('<div class="main-header"><h1>⚙️ Settings</h1><p>Manage your dashboard</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header"><h1>Settings</h1><p>Manage your dashboard</p></div>', unsafe_allow_html=True)
     
     # Configuration Status
-    st.subheader("🔧 Configuration Status")
+    st.subheader("Configuration Status")
     
     # Check database connection
     db_conn = create_db_connection()
     if db_conn:
-        st.success("✅ Database connection successful")
+        st.success("Database connection successful")
         db_conn.close()
     else:
-        st.error("❌ Database connection failed")
+        st.error("Database connection failed")
         st.info("Add your database credentials to .streamlit/secrets.toml")
     
     # Check API keys
     claude_client = get_claude_client()
     if claude_client:
-        st.success("✅ Claude API key configured")
+        st.success("Claude API key configured")
     else:
-        st.error("❌ Claude API key missing")
+        st.error("Claude API key missing")
         st.info("Add your Anthropic API key to .streamlit/secrets.toml")
     
     # Debug Mode Toggle
-    st.subheader("🔍 Debug Settings")
+    st.subheader("Debug Settings")
     debug_mode = st.checkbox(
         "Enable Debug Mode",
         value=st.session_state.get('debug_mode', False),
@@ -6510,31 +6663,33 @@ def render_settings():
     st.session_state.debug_mode = debug_mode
     
     if debug_mode:
-        st.success("✅ Debug mode enabled - detailed information will be shown on the dashboard")
+        st.success("Debug mode enabled - detailed information will be shown on the dashboard")
     else:
         st.info("Debug mode disabled - dashboard will show standard interface")
     
-    st.subheader("🛠️ Actions")
+    st.subheader("Actions")
+    st.markdown('<div class="settings-actions">', unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🔄 Refresh Cache"):
+        if st.button("Refresh Cache"):
             st.cache_data.clear()
             st.success("Cache refreshed!")
             st.rerun()
     with col2:
-        if st.button("🔄 Restart App"):
+        if st.button("Restart App"):
             st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- AI INTELLIGENCE HUB ---
 
 def render_ai_intelligence_hub():
     """Render the AI Intelligence Hub page."""
-    st.markdown('<div class="main-header"><h1>🧠 AI Intelligence Hub</h1><p>AI-powered business insights</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header"><h1>AI Intelligence Hub</h1><p>AI-powered business insights</p></div>', unsafe_allow_html=True)
     
     st.info("AI Intelligence Hub is under development. Check back soon for advanced AI-powered analytics!")
     
     # Placeholder for future AI features
-    st.subheader("🚀 Coming Soon")
+    st.subheader("Coming Soon")
     st.write("- Automated weekly performance reviews")
     st.write("- Predictive analytics")
     st.write("- Natural language query interface")

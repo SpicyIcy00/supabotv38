@@ -203,9 +203,9 @@ class DatabaseManager:
             error_msg = str(e)
             st.error(f"Query execution failed: {error_msg}")
             if "does not exist" in error_msg:
-                st.info("💡 The query references a table or column that doesn't exist.")
+                st.info("The query references a table or column that doesn't exist.")
             elif "syntax error" in error_msg:
-                st.info("💡 There's a syntax error in the SQL.")
+                st.info("There's a syntax error in the SQL.")
             return None
         finally:
             current, peak = tracemalloc.get_traced_memory()
@@ -274,6 +274,7 @@ class DatabaseManager:
 # Global singleton instance
 _db_manager = None
 
+
 def get_db_manager() -> DatabaseManager:
     """Get the global DatabaseManager instance."""
     global _db_manager
@@ -281,22 +282,27 @@ def get_db_manager() -> DatabaseManager:
         _db_manager = DatabaseManager()
     return _db_manager
 
+
 # Legacy function compatibility - these maintain the original function signatures
 def create_db_connection():
     """Legacy compatibility function."""
     return get_db_manager().create_connection()
 
+
 def get_database_schema():
     """Legacy compatibility function."""
     return get_db_manager().get_database_schema()
+
 
 def execute_query_for_assistant(sql: str):
     """Legacy compatibility function."""
     return get_db_manager().execute_query_for_assistant(sql)
 
+
 def execute_query_for_dashboard(sql: str, params=None):
     """Legacy compatibility function."""
     return get_db_manager().execute_query_for_dashboard(sql, params)
+
 
 def get_column_config(df: pd.DataFrame):
     """Legacy compatibility function."""

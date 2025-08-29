@@ -68,7 +68,7 @@ class MetricsDisplay:
         if not highlights:
             return
         
-        st.subheader("📊 Business Highlights")
+        st.subheader("Business Highlights")
         
         for highlight in highlights:
             st.markdown(f"• {highlight}")
@@ -80,7 +80,7 @@ class MetricsDisplay:
             st.warning("No top sellers data available")
             return
         
-        st.subheader(f"🏆 {title}")
+        st.subheader(f"{title}")
         
         # Format the dataframe for display
         display_df = df.copy()
@@ -111,7 +111,7 @@ class MetricsDisplay:
             st.warning("No store performance data available")
             return
         
-        st.subheader("🏪 Store Performance")
+        st.subheader("Store Performance")
         
         # Create columns for each store
         stores = df.head(4)  # Show top 4 stores
@@ -159,14 +159,13 @@ class FilterComponents:
     @staticmethod
     def render_page_navigation() -> str:
         """Render page navigation in sidebar."""
-        st.sidebar.title("🧠 SupaBot BI")
+        st.sidebar.title("SupaBot BI")
         
         pages = [
             "Dashboard",
             "Smart Reports", 
             "Chart View",
             "AI Assistant",
-    
             "Settings"
         ]
         
@@ -184,6 +183,7 @@ class FilterComponents:
 def render_kpi_metrics(metrics: Dict[str, Any], time_filter: str):
     """Legacy compatibility function."""
     MetricsDisplay.render_kpi_metrics(metrics, time_filter)
+
 
 def render_business_highlights(highlights: List[str]):
     """Legacy compatibility function."""

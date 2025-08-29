@@ -13,7 +13,7 @@ class AppSettings:
     # Page configuration
     PAGE_CONFIG = {
         "page_title": "SupaBot BI Dashboard",
-        "page_icon": "📊",
+        "page_icon": "",
         "layout": "wide",
         "initial_sidebar_state": "expanded"
     }

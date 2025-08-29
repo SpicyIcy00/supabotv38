@@ -56,7 +56,7 @@ class ResponsiveLayout:
         return container_classes.get(container_type, "chart-container")
     
     @staticmethod
-    def responsive_header(title: str, subtitle: str = "", icon: str = "📊") -> None:
+    def responsive_header(title: str, subtitle: str = "", icon: str = "") -> None:
         """
         Create a responsive header that adapts to screen size.
         

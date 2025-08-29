@@ -32,7 +32,7 @@ def main():
         init_session_state()
         
         # Sidebar Navigation
-        st.sidebar.title("🧠 SupaBot BI")
+        st.sidebar.title("SupaBot BI")
         pages = [
             "Dashboard",
             "Product Sales Report",
@@ -70,12 +70,12 @@ def main():
             if current_page in page_map:
                 page_map[current_page]()
             else:
-                st.error(f"❌ Page '{current_page}' not found")
+                st.error(f"Page '{current_page}' not found")
                 st.info("Please select a valid page from the sidebar")
         except Exception as page_error:
-            st.error(f"❌ Error loading {current_page}: {page_error}")
+            st.error(f"Error loading {current_page}: {page_error}")
             import traceback
-            with st.expander("🔍 Error Details"):
+            with st.expander("Error Details"):
                 st.code(traceback.format_exc())
 
 
@@ -83,7 +83,7 @@ def main():
         # Footer
         st.markdown(
             "<hr><div style='text-align:center;color:#666;'>"
-            "<p>🧠 Enhanced SupaBot with Smart Visualizations | Powered by Claude Sonnet 3.5</p>"
+            "<p>Enhanced SupaBot with Smart Visualizations | Powered by Claude Sonnet 3.5</p>"
             "</div>", 
             unsafe_allow_html=True
         )
@@ -92,7 +92,7 @@ def main():
         st.error(f"Application error: {e}")
         st.info("Please check your configuration and try refreshing the page.")
         import traceback
-        with st.expander("🔍 Full Error Details"):
+        with st.expander("Full Error Details"):
             st.code(traceback.format_exc())
 
 

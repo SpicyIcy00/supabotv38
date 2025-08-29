@@ -68,7 +68,7 @@ class DashboardStyles:
         display: flex;
         flex-direction: column;
         justify-content: center;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.2rem;
     }
     
     div[data-testid="stMetric"] > div:nth-child(1) {
@@ -97,7 +97,26 @@ class DashboardStyles:
         min-height: 300px;
         display: flex;
         flex-direction: column;
-        margin-bottom: 1rem;
+        margin-bottom: 0.4rem;
+    }
+    
+    /* Ensure consistent vertical spacing between dashboard items */
+    .dashboard-item {
+        margin-bottom: 0.4rem !important;
+    }
+    
+    .dashboard-item:last-child {
+        margin-bottom: 0 !important;
+    }
+    
+    /* Make vertical gaps exactly match horizontal column gap */
+    .dashboard-item + .dashboard-item {
+        margin-top: 0.4rem !important;
+    }
+    
+    /* Force consistent spacing for Streamlit containers */
+    [data-testid="stContainer"] {
+        margin-bottom: 0.4rem !important;
     }
     
     .dashboard-card-tall {
@@ -193,7 +212,7 @@ class DashboardStyles:
         div[data-testid="stMetric"] {
             padding: 1rem;
             min-height: 120px;
-            margin-bottom: 0.75rem;
+            margin-bottom: 0.3rem;
         }
         
         div[data-testid="stMetric"] > div:nth-child(1) {
@@ -211,7 +230,7 @@ class DashboardStyles:
         .dashboard-card {
             padding: 1rem;
             min-height: 350px;
-            margin-bottom: 1.5rem;
+            margin-bottom: 0.6rem;
         }
         
         .dashboard-card h5 {
@@ -282,7 +301,113 @@ class DashboardStyles:
         /* Force single column layout for all st.columns */
         [data-testid="column"] {
             width: 100% !important;
-            margin-bottom: 1rem;
+            margin-bottom: 0.4rem;
+        }
+        
+        /* Mobile-specific optimizations for different page layouts */
+        
+        /* Product Sales Report - 4-column filter optimization */
+        .filter-container [data-testid="column"] {
+            width: 100% !important;
+            margin-bottom: 0.5rem !important;
+        }
+        
+        /* Chart View - complex filter optimization */
+        .chart-view-filters [data-testid="column"] {
+            width: 100% !important;
+            margin-bottom: 0.5rem !important;
+        }
+        
+        /* Advanced Analytics - tab content optimization */
+        [data-testid="stTabs"] [data-testid="stTab"] {
+            padding: 0.5rem !important;
+        }
+        
+        /* AI Assistant - chat layout optimization */
+        .chat-message {
+            margin-bottom: 0.75rem !important;
+            padding: 0.5rem !important;
+        }
+        
+        /* Settings - two-column layout optimization */
+        .settings-container [data-testid="column"] {
+            width: 100% !important;
+            margin-bottom: 0.5rem !important;
+        }
+        
+        /* Mobile radio button optimization */
+        [data-baseweb="radio"] {
+            flex-direction: column !important;
+            gap: 0.5rem !important;
+        }
+        
+        [data-baseweb="radio"] label {
+            min-height: 48px !important;
+            display: flex !important;
+            align-items: center !important;
+            padding: 0.5rem !important;
+        }
+        
+        /* Mobile multiselect optimization */
+        [data-baseweb="multiselect"] {
+            min-height: 48px !important;
+        }
+        
+        /* Mobile date input optimization */
+        [data-baseweb="date-input"] {
+            min-height: 48px !important;
+        }
+        
+        /* Mobile selectbox optimization */
+        [data-baseweb="select"] {
+            min-height: 48px !important;
+        }
+        
+        /* Mobile optimizations for specific page layouts */
+        
+        /* Product Sales Report mobile optimizations */
+        .product-sales-filters [data-testid="column"] {
+            width: 100% !important;
+            margin-bottom: 0.5rem !important;
+        }
+        
+        .product-sales-header [data-testid="column"] {
+            width: 100% !important;
+            margin-bottom: 0.5rem !important;
+        }
+        
+        /* Chart View mobile optimizations */
+        .time-period-selector [data-baseweb="radio"] {
+            flex-direction: column !important;
+            gap: 0.5rem !important;
+        }
+        
+        .chart-view-filters [data-testid="column"] {
+            width: 100% !important;
+            margin-bottom: 0.5rem !important;
+        }
+        
+        /* Advanced Analytics mobile optimizations */
+        .advanced-analytics-tabs [data-baseweb="tab-list"] {
+            flex-direction: column !important;
+            gap: 0.5rem !important;
+        }
+        
+        .demand-analytics-section [data-testid="column"] {
+            width: 100% !important;
+            margin-bottom: 0.5rem !important;
+        }
+        
+        /* AI Assistant mobile optimizations */
+        .ai-examples-container [data-testid="column"] {
+            width: 100% !important;
+            margin-bottom: 0.5rem !important;
+        }
+        
+        /* Settings mobile optimizations */
+        .settings-actions [data-testid="column"] {
+            width: 100% !important;
+            margin-bottom: 0.5rem !important;
         }
         
         /* KPI grid - 2x2 on mobile */
@@ -321,7 +446,7 @@ class DashboardStyles:
         
         /* Increase spacing between interactive elements */
         [data-testid="stMetric"], .dashboard-card, button {
-            margin-bottom: 0.75rem;
+            margin-bottom: 0.4rem;
         }
     }
     

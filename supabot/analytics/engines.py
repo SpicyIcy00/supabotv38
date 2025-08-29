@@ -194,7 +194,7 @@ class AIAnalyticsEngine:
             urgent_restocks = hidden_demand_df[hidden_demand_df['recommendation'] == 'URGENT_RESTOCK']
             if urgent_restocks is not None and len(urgent_restocks) > 0:
                 recommendations.append(
-                    f"🚨 {len(urgent_restocks)} products need urgent restocking"
+                    f"{len(urgent_restocks)} products need urgent restocking"
                 )
         
         # Seasonal recommendations
@@ -204,7 +204,7 @@ class AIAnalyticsEngine:
                           9: 'September', 10: 'October', 11: 'November', 12: 'December'}
             peak_month_name = month_names.get(seasonal_data['peak_month'])
             recommendations.append(
-                f"📅 Prepare for peak season in {peak_month_name}"
+                f"Prepare for peak season in {peak_month_name}"
             )
         
         # Behavior-based recommendations
@@ -212,7 +212,7 @@ class AIAnalyticsEngine:
         if hourly_patterns:
             peak_hour = hourly_patterns[0]['period']
             recommendations.append(
-                f"⏰ Schedule more staff around {int(peak_hour)}:00 (peak hour)"
+                f"Schedule more staff around {int(peak_hour)}:00 (peak hour)"
             )
         
         # Inventory optimization
@@ -220,7 +220,7 @@ class AIAnalyticsEngine:
             low_stock_count = len(hidden_demand_df[hidden_demand_df['current_stock'] == 0])
             if low_stock_count > 5:
                 recommendations.append(
-                    f"📦 Review inventory management - {low_stock_count} items out of stock"
+                    f"Review inventory management - {low_stock_count} items out of stock"
                 )
         
         return recommendations[:5]  # Return top 5 recommendations
@@ -228,6 +228,7 @@ class AIAnalyticsEngine:
 
 # Global singleton instance
 _ai_analytics_engine = None
+
 
 def get_ai_analytics_engine() -> AIAnalyticsEngine:
     """Get the global AIAnalyticsEngine instance."""

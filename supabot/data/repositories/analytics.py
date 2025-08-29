@@ -98,35 +98,36 @@ class AnalyticsRepository(BaseRepository):
         if prev_sales > 0:
             sales_change = ((current_sales - prev_sales) / prev_sales) * 100
             if sales_change > 10:
-                highlights.append(f"📈 Sales increased by {sales_change:.1f}% vs previous period")
+                highlights.append(f"Sales increased by {sales_change:.1f}% vs previous period")
             elif sales_change < -10:
-                highlights.append(f"📉 Sales decreased by {abs(sales_change):.1f}% vs previous period")
+                highlights.append(f"Sales decreased by {abs(sales_change):.1f}% vs previous period")
         
         # Top seller insights
         if not top_sellers_df.empty:
             top_product = top_sellers_df.iloc[0]
-            highlights.append(f"🏆 Top seller: {top_product['product_name']} (₱{top_product['total_revenue']:,.0f})")
+            highlights.append(f"Top seller: {top_product['product_name']} (₱{top_product['total_revenue']:,.0f})")
             
             # Category insights
             if 'category' in top_sellers_df.columns:
                 top_category = top_sellers_df.groupby('category')['total_revenue'].sum().idxmax()
-                highlights.append(f"📊 Leading category: {top_category}")
+                highlights.append(f"Leading category: {top_category}")
         
         # Transaction insights
         current_transactions = metrics.get('current_transactions', 0)
         avg_transaction = metrics.get('avg_transaction_value', 0)
         
         if avg_transaction > 0:
-            highlights.append(f"💰 Average transaction: ₱{avg_transaction:.0f}")
+            highlights.append(f"Average transaction: ₱{avg_transaction:.0f}")
         
         if current_transactions > 0:
-            highlights.append(f"🛒 Total transactions: {current_transactions:,}")
+            highlights.append(f"Total transactions: {current_transactions:,}")
         
         return highlights[:5]  # Limit to 5 highlights
 
 
 # Global singleton instance
 _analytics_repository = None
+
 
 def get_analytics_repository() -> AnalyticsRepository:
     """Get the global AnalyticsRepository instance."""
