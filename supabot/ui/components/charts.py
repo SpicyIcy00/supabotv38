@@ -99,7 +99,7 @@ class ChartFactory:
                      color_discrete_sequence=px.colors.qualitative.Set3)
         
         fig.update_traces(textposition='inside', textinfo='percent+label')
-        fig.update_layout(height=500, showlegend=True)
+        fig.update_layout(height=350, showlegend=True)
         return fig
     
     @staticmethod
@@ -118,7 +118,7 @@ class ChartFactory:
                          color=value_col,
                          color_continuous_scale='Blues')
         
-        fig.update_layout(height=500)
+        fig.update_layout(height=350)
         return fig
     
     @staticmethod
@@ -138,7 +138,7 @@ class ChartFactory:
                          title=f"Relationship: {question}",
                          hover_data=numeric_cols[:3])
         
-        fig.update_layout(height=500)
+        fig.update_layout(height=350)
         return fig
     
     @staticmethod
@@ -163,7 +163,7 @@ class ChartFactory:
                       title=f"Trend: {question}",
                       markers=True)
         
-        fig.update_layout(height=500)
+        fig.update_layout(height=350)
         fig.update_traces(line=dict(width=3), marker=dict(size=8))
         return fig
     
@@ -188,7 +188,7 @@ class ChartFactory:
                            color_continuous_scale='RdYlBu_r',
                            aspect='auto')
             
-            fig.update_layout(height=500)
+            fig.update_layout(height=350)
             return fig
         except:
             return ChartFactory.create_bar_chart(results_df, question, numeric_cols, text_cols)
@@ -212,7 +212,7 @@ class ChartFactory:
                          y=value_col,
                          title=f"Distribution: {question}")
         
-        fig.update_layout(height=500)
+        fig.update_layout(height=350)
         return fig
     
     @staticmethod
@@ -235,7 +235,7 @@ class ChartFactory:
                       y=value_col,
                       title=f"Cumulative: {question}")
         
-        fig.update_layout(height=500)
+        fig.update_layout(height=350)
         return fig
     
     @staticmethod
@@ -250,7 +250,7 @@ class ChartFactory:
             fig.add_annotation(text="No numeric data to visualize", 
                              xref="paper", yref="paper", x=0.5, y=0.5,
                              showarrow=False, font=dict(size=16))
-            fig.update_layout(title=f"Data: {question}", height=400)
+            fig.update_layout(title=f"Data: {question}", height=350)
             return fig
         
         if not label_col:
@@ -270,7 +270,7 @@ class ChartFactory:
             if len(df_display) > 10:
                 fig.update_xaxes(tickangle=45)
         
-        fig.update_layout(height=500)
+        fig.update_layout(height=350)
         return fig
     
     @staticmethod

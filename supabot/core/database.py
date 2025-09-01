@@ -174,6 +174,7 @@ class DatabaseManager:
         """Execute query for AI assistant using Polars. Returns pandas for UI compatibility."""
         conn = self.create_connection()
         if not conn:
+            print("Failed to get database connection for AI assistant")
             return None
         start = time.perf_counter()
         tracemalloc.start()
@@ -199,13 +200,24 @@ class DatabaseManager:
         except psycopg2.errors.QueryCanceled:
             st.error("Query took too long to execute. Try a simpler question.")
             return None
-        except Exception as e:
+        except psycopg2.OperationalError as e:
+            st.error(f"Database connection error: {e}")
+            st.info("Please check your database connection and try again.")
+            return None
+        except psycopg2.ProgrammingError as e:
             error_msg = str(e)
-            st.error(f"Query execution failed: {error_msg}")
             if "does not exist" in error_msg:
-                st.info("The query references a table or column that doesn't exist.")
+                st.error("The query references a table or column that doesn't exist.")
+                st.info("Please check the table and column names in your question.")
             elif "syntax error" in error_msg:
-                st.info("There's a syntax error in the SQL.")
+                st.error("There's a syntax error in the generated SQL.")
+                st.info("Please try rephrasing your question.")
+            else:
+                st.error(f"SQL error: {error_msg}")
+            return None
+        except Exception as e:
+            st.error(f"Query execution failed: {e}")
+            st.info("Please try a different question or check the system status.")
             return None
         finally:
             current, peak = tracemalloc.get_traced_memory()
@@ -217,7 +229,7 @@ class DatabaseManager:
             self.release_connection(conn)
     
     def execute_query_for_dashboard(self, sql: str, params: Optional[List] = None) -> Optional[pd.DataFrame]:
-        """Execute query for dashboard with improved connection handling."""
+        """Execute query for dashboard with improved connection handling and error reporting."""
         conn = None
         start = time.perf_counter()
         tracemalloc.start()
@@ -225,6 +237,7 @@ class DatabaseManager:
         try:
             conn = self.create_connection()
             if not conn:
+                print("Failed to get database connection")
                 return pd.DataFrame()
             
             cur = conn.cursor()
@@ -241,9 +254,16 @@ class DatabaseManager:
             
             return pl_df.to_pandas()
             
+        except psycopg2.OperationalError as e:
+            print(f"Database connection error in dashboard query: {e}")
+            return pd.DataFrame()
+        except psycopg2.ProgrammingError as e:
+            print(f"SQL programming error in dashboard query: {e}")
+            print(f"SQL: {sql[:200]}...")
+            return pd.DataFrame()
         except Exception as e:
-            # Silently handle errors for dashboard queries to avoid breaking the UI
             print(f"Dashboard query error: {e}")
+            print(f"SQL: {sql[:200]}...")
             return pd.DataFrame()
         finally:
             # Always release the connection

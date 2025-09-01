@@ -22,14 +22,24 @@ from appv38 import (
 
 
 def main():
-    """Main application entry point."""
+    """Main application entry point with comprehensive error handling."""
+    logger = None
     try:
+        # Import logging after streamlit is configured
+        from supabot.core.logging import get_logger, log_user_action
+        logger = get_logger()
+        
+        logger.info("Starting SupaBot BI Dashboard")
+        
         # Configure Streamlit and load styles
         settings.configure_streamlit()
         DashboardStyles.load_all_styles()
         
         # Initialize session state
         init_session_state()
+        
+        # Log user session start
+        log_user_action("session_start", {"page": "main"})
         
         # Inject mobile-responsive CSS directly
         st.markdown("""
@@ -220,17 +230,33 @@ def main():
                 min-width: 100% !important;
             }
             
-            /* Fix sidebar navigation styling */
-            .css-1d391kg .stRadio > div > label {
-                display: flex !important;
-                align-items: center !important;
-                padding: 0.25rem 0.5rem !important;
-                margin: 0.1rem 0 !important;
-                border: none !important;
+            /* Navigation Button Styling */
+            .css-1d391kg .stButton > button {
+                width: 100% !important;
+                text-align: left !important;
                 background: transparent !important;
-                min-height: 32px !important;
-                font-size: 0.85rem !important;
+                border: 1px solid rgba(255,255,255,0.1) !important;
                 color: white !important;
+                padding: 0.5rem 0.75rem !important;
+                margin: 0.125rem 0 !important;
+                border-radius: 4px !important;
+                font-size: 0.875rem !important;
+                transition: all 0.2s ease !important;
+            }
+            
+            /* Navigation Button Hover Effects */
+            .css-1d391kg .stButton > button:hover {
+                background: rgba(255,255,255,0.1) !important;
+                border-color: rgba(255,255,255,0.3) !important;
+                transform: translateX(2px) !important;
+            }
+            
+            /* Active/Primary Navigation Button */
+            .css-1d391kg .stButton > button[data-baseweb="button"][kind="primary"] {
+                background: #00d2ff !important;
+                border-color: #00d2ff !important;
+                color: white !important;
+                font-weight: 600 !important;
             }
             
             /* Fix sidebar title */
@@ -238,11 +264,16 @@ def main():
                 font-size: 1.1rem !important;
                 margin-bottom: 0.5rem !important;
                 text-align: left !important;
+                color: white !important;
             }
             
-            /* Make sidebar navigation more compact */
-            .css-1d391kg .stRadio > div {
-                margin-bottom: 0.1rem !important;
+            /* Navigation Section Header */
+            .css-1d391kg h3 {
+                font-size: 0.9rem !important;
+                margin: 1rem 0 0.5rem 0 !important;
+                color: #b0b0b0 !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.5px !important;
             }
             
             /* Ensure radio button and text are properly aligned */
@@ -330,24 +361,36 @@ def main():
         st.sidebar.title("SupaBot BI")
         pages = [
             "Dashboard",
-            "Product Sales Report",
+            "Product Sales Report", 
             "Chart View",
             "Advanced Analytics",
             "AI Assistant",
             "Settings",
         ]
         
-        # Page selector
-        selected_page = st.sidebar.radio(
-            "",
-            pages,
-            key="navigation",
-            index=pages.index(st.session_state.get("current_page", "Dashboard"))
-        )
+        # Initialize current page if not set
+        if "current_page" not in st.session_state:
+            st.session_state.current_page = "Dashboard"
         
-        # Update session state if page changed
-        if selected_page != st.session_state.get("current_page"):
-            st.session_state.current_page = selected_page
+        # Create navigation buttons
+        st.sidebar.markdown("### Navigation")
+        for page in pages:
+            # Check if this is the current page
+            is_current = (page == st.session_state.current_page)
+            
+            # Create button with conditional styling
+            button_key = f"nav_{page.replace(' ', '_').lower()}"
+            if st.sidebar.button(
+                page,
+                key=button_key,
+                use_container_width=True,
+                type="primary" if is_current else "secondary"
+            ):
+                st.session_state.current_page = page
+                st.rerun()
+        
+        # Get the selected page from session state
+        selected_page = st.session_state.current_page
         
         # Page navigation with error handling
         page_map = {
@@ -363,12 +406,22 @@ def main():
         current_page = st.session_state.get("current_page", "Dashboard")
         try:
             if current_page in page_map:
+                # Log page navigation
+                if logger:
+                    log_user_action("page_navigation", {"page": current_page})
+                
                 page_map[current_page]()
             else:
                 st.error(f"Page '{current_page}' not found")
                 st.info("Please select a valid page from the sidebar")
+                if logger:
+                    logger.warning("Invalid page requested", page=current_page)
         except Exception as page_error:
-            st.error(f"Error loading {current_page}: {page_error}")
+            error_msg = f"Error loading {current_page}: {page_error}"
+            st.error(error_msg)
+            if logger:
+                logger.error("Page loading failed", page=current_page, error=str(page_error))
+            
             import traceback
             with st.expander("Error Details"):
                 st.code(traceback.format_exc())
@@ -384,8 +437,13 @@ def main():
         )
         
     except Exception as e:
-        st.error(f"Application error: {e}")
+        error_msg = f"Application error: {e}"
+        st.error(error_msg)
         st.info("Please check your configuration and try refreshing the page.")
+        
+        if logger:
+            logger.error("Application startup failed", error=str(e))
+        
         import traceback
         with st.expander("Full Error Details"):
             st.code(traceback.format_exc())

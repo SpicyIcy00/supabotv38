@@ -21,6 +21,8 @@ from supabot.core.database import (
     get_db_manager, create_db_connection, get_database_schema, 
     execute_query_for_assistant, execute_query_for_dashboard, get_column_config
 )
+from supabot.core.validators import DataValidator, QueryValidator, validate_store_ids
+from supabot.core.logging import get_logger, performance_monitor, log_user_action
 from supabot.ui.styles.css import DashboardStyles
 
 # Configure Streamlit and load styles only when needed
@@ -268,9 +270,24 @@ def get_openai_client():
 
 # AI Assistant Core Functions
 def generate_smart_sql(question, schema_info=None, training_system=None):
-    """Ultimate AI SQL generator with training system integration"""
+    """Ultimate AI SQL generator with training system integration and validation"""
+    logger = get_logger()
+    
+    # Validate inputs
+    if not question or not isinstance(question, str):
+        logger.error("Invalid question provided to SQL generator")
+        return None
+    
+    if len(question.strip()) < 3:
+        logger.warning("Question too short for meaningful SQL generation")
+        return None
+    
+    logger.info("Generating SQL", question_length=len(question))
+    
     client = get_claude_client()
-    if not client: return None
+    if not client: 
+        logger.error("Claude client not available")
+        return None
     
     schema_context = "DATABASE SCHEMA:\n\n"
     if schema_info:
@@ -321,8 +338,17 @@ Generate ONLY the SQL query, no explanations:"""
         sql = re.sub(r'```sql\s*', '', sql, flags=re.IGNORECASE)
         sql = re.sub(r'```\s*', '', sql).strip()
         if not sql.endswith(';'): sql += ';'
+        
+        # Validate SQL safety
+        is_safe, error_msg = QueryValidator.validate_sql_safety(sql)
+        if not is_safe:
+            logger.error("Generated SQL failed safety validation", error=error_msg)
+            return None
+        
+        logger.info("SQL generated successfully", sql_length=len(sql))
         return sql
     except Exception as e:
+        logger.error("AI query generation failed", error=str(e))
         st.error(f"AI query generation failed: {e}")
         return None
 
@@ -743,7 +769,7 @@ def create_bar_chart(results_df, question, numeric_cols, text_cols):
 # Execute query for AI Assistant
 # Database query functions now imported from supabot.core.database
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=1800)  # 30 minutes - reasonable for metrics that change throughout the day
 def get_latest_metrics():
     sql = """
     WITH latest_date AS (
@@ -762,7 +788,7 @@ def get_latest_metrics():
     """
     return execute_query_for_dashboard(sql)
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=1800)  # 30 minutes - reasonable for metrics that change throughout the day
 def get_previous_metrics():
     sql = """
     WITH latest_date AS (
@@ -781,7 +807,7 @@ def get_previous_metrics():
     """
     return execute_query_for_dashboard(sql)
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=1800)  # 30 minutes - reasonable for hourly sales patterns
 def get_hourly_sales():
     sql = """
     WITH latest_date AS (
@@ -806,10 +832,19 @@ def get_hourly_sales():
     return execute_query_for_dashboard(sql)
 
 @st.cache_data(ttl=300)
+@performance_monitor
 def get_store_performance(time_filter: str = "7D", store_ids: Optional[List[int]] = None):
     """Top stores by total sales over the selected period using transaction-level totals.
     Uses intelligent date ranges, Manila timezone, and filters out cancelled transactions.
     """
+    logger = get_logger()
+    
+    # Validate inputs
+    store_ids = validate_store_ids(store_ids)
+    time_filter = DataValidator.validate_time_filter(time_filter)
+    
+    logger.info("Getting store performance", time_filter=time_filter, store_count=len(store_ids) if store_ids else 0)
+    
     # Get intelligent date ranges
     date_range = get_intelligent_date_range(time_filter)
     current_start = date_range['start_date']
@@ -836,7 +871,16 @@ def get_store_performance(time_filter: str = "7D", store_ids: Optional[List[int]
     HAVING SUM(t.total) > 0
     ORDER BY total_sales DESC
     """
-    return execute_query_for_dashboard(sql, params=params)
+    
+    result = execute_query_for_dashboard(sql, params=params)
+    
+    # Validate result
+    is_valid, error_msg = DataValidator.validate_dataframe(result, ['store_name', 'total_sales'])
+    if not is_valid:
+        logger.warning("Store performance query returned invalid data", error=error_msg)
+        return pd.DataFrame(columns=['store_name', 'total_sales'])
+    
+    return result
 
 @st.cache_data(ttl=300)
 def get_store_performance_with_comparison(time_filter: str = "7D", store_ids: Optional[List[int]] = None):
@@ -1188,97 +1232,113 @@ def get_time_filter_interval(time_filter="7d"):
 
 def get_intelligent_date_range(time_filter: str) -> Dict[str, Any]:
     """Get intelligent date ranges based on the selected time period.
+    All periods end on YESTERDAY and compare to the equivalent previous period.
     
     Returns:
         Dict with 'start_date' and 'end_date' in Asia/Manila timezone
+        - Custom: Use custom dates from session state
         - 1D: Yesterday only
-        - 7D: Current week to date (Monday to today)
-        - 1M: Current month to date (1st of month to today)
-        - 6M: Current month to date (1st of month to today) - for backward compatibility
-        - 1Y: Current year to date (1st of year to today)
+        - 7D: Week to date ending yesterday (Mon-Yesterday vs Mon-Yesterday last week)
+        - 1M: Month to date ending yesterday (1st-Yesterday vs same dates last month)
+        - 6M: 6 months to date ending yesterday
+        - 1Y: Year to date ending yesterday (Jan 1-Yesterday vs same dates last year)
     """
     from datetime import datetime, timedelta, date
+    import streamlit as st
     
-    # Get current date in Asia/Manila timezone
-    now_mnl = datetime.now()  # Assuming server is in Asia/Manila or using proper timezone handling
+    # Handle custom date range first
+    if time_filter == "Custom":
+        if st.session_state.get('custom_start_date') and st.session_state.get('custom_end_date'):
+            start_date = st.session_state['custom_start_date']
+            end_date = st.session_state['custom_end_date']
+            return {
+                'start_date': start_date,
+                'end_date': end_date,
+                'description': f'Custom range ({start_date.strftime("%b %d, %Y")} to {end_date.strftime("%b %d, %Y")})'
+            }
+        else:
+            # Fallback to last 7 days if custom dates not set
+            now_mnl = datetime.now()
+            yesterday = (now_mnl - timedelta(days=1)).date()
+            start_date = yesterday - timedelta(days=6)  # 7 days ending yesterday
+            return {
+                'start_date': start_date,
+                'end_date': yesterday,
+                'description': f'Last 7 days (Custom dates not set)'
+            }
+    
+    # Get current date and yesterday in Asia/Manila timezone
+    now_mnl = datetime.now()
+    yesterday = (now_mnl - timedelta(days=1)).date()
     
     if time_filter == "1D":
-        # Last 1 day (yesterday to today for better data availability)
-        start_date = (now_mnl - timedelta(days=1)).date()
-        end_date = now_mnl.date()
+        # Yesterday only
+        start_date = yesterday
+        end_date = yesterday
         return {
             'start_date': start_date,
             'end_date': end_date,
-            'description': f'Last 1 day ({start_date.strftime("%b %d")} to {end_date.strftime("%b %d")})'
+            'description': f'Yesterday ({yesterday.strftime("%a, %b %d")})'
         }
     
     elif time_filter == "7D":
-        # Current week to date (Monday to yesterday) - always use yesterday for fair comparison
-        yesterday = (now_mnl - timedelta(days=1)).date()  # Always use yesterday as end point
+        # Week to date ending yesterday
+        # Find the Monday of the week that yesterday belongs to
         days_since_monday = yesterday.weekday()  # Monday = 0, Sunday = 6
-        start_date = yesterday - timedelta(days=days_since_monday)  # This week's Monday
-        end_date = yesterday  # Always end on yesterday
-        
-        # If it's Monday (yesterday was Sunday), show last 7 days instead
-        if days_since_monday == 6:  # Yesterday was Sunday
-            start_date = yesterday - timedelta(days=6)  # Show last 7 days instead
-            description = f'Last 7 days ({start_date.strftime("%b %d")} to {end_date.strftime("%b %d")})'
-        else:
-            description = f'Week to date ({start_date.strftime("%b %d")} to {end_date.strftime("%b %d")})'
+        week_start = yesterday - timedelta(days=days_since_monday)  # Monday of this week
         
         return {
-            'start_date': start_date,
-            'end_date': end_date,
-            'description': description
+            'start_date': week_start,
+            'end_date': yesterday,
+            'description': f'Week to date ({week_start.strftime("%a %b %d")} to {yesterday.strftime("%a %b %d")})'
         }
     
     elif time_filter == "1M":
-        # Current month to date (1st of month to today), but if it's very early in month, extend to ensure data
-        start_date = now_mnl.replace(day=1).date()
-        end_date = now_mnl.date()
-        
-        # If it's the 1st or 2nd of the month and we might not have much data, include previous days
-        if now_mnl.day <= 2:
-            start_date = (now_mnl - timedelta(days=29)).date()  # Show last 30 days instead
-            description = f'Last 30 days ({start_date.strftime("%b %d")} to {end_date.strftime("%b %d")})'
-        else:
-            description = f'Month to date ({start_date.strftime("%b %d")} to {end_date.strftime("%b %d")})'
+        # Month to date ending yesterday
+        # Find the 1st of the month that yesterday belongs to
+        month_start = yesterday.replace(day=1)
         
         return {
-            'start_date': start_date,
-            'end_date': end_date,
-            'description': description
+            'start_date': month_start,
+            'end_date': yesterday,
+            'description': f'Month to date ({month_start.strftime("%b %d")} to {yesterday.strftime("%b %d")})'
         }
     
     elif time_filter == "6M":
-        # For backward compatibility, use current month to date
-        start_date = now_mnl.replace(day=1).date()
-        end_date = now_mnl.date()
+        # 6 months to date ending yesterday
+        # Go back 6 months from yesterday's month
+        if yesterday.month <= 6:
+            # If we're in Jan-Jun, go to previous year
+            six_months_start = yesterday.replace(year=yesterday.year - 1, month=yesterday.month + 6, day=1)
+        else:
+            # If we're in Jul-Dec, stay in same year
+            six_months_start = yesterday.replace(month=yesterday.month - 6, day=1)
+        
         return {
-            'start_date': start_date,
-            'end_date': end_date,
-            'description': f'Month to date ({start_date.strftime("%b %d")} to {end_date.strftime("%b %d")})'
+            'start_date': six_months_start,
+            'end_date': yesterday,
+            'description': f'6 months to date ({six_months_start.strftime("%b %d, %Y")} to {yesterday.strftime("%b %d, %Y")})'
         }
     
     elif time_filter == "1Y":
-        # Current year to date (1st of year to today)
-        start_date = now_mnl.replace(month=1, day=1).date()
-        end_date = now_mnl.date()
+        # Year to date ending yesterday
+        # Find January 1st of the year that yesterday belongs to
+        year_start = yesterday.replace(month=1, day=1)
+        
         return {
-            'start_date': start_date,
-            'end_date': end_date,
-            'description': f'Year to date ({start_date.strftime("%b %d, %Y")} to {end_date.strftime("%b %d, %Y")})'
+            'start_date': year_start,
+            'end_date': yesterday,
+            'description': f'Year to date ({year_start.strftime("%b %d, %Y")} to {yesterday.strftime("%b %d, %Y")})'
         }
     
     else:
-        # Default to current week to date
-        days_since_monday = now_mnl.weekday()
-        start_date = (now_mnl - timedelta(days=days_since_monday)).date()
-        end_date = now_mnl.date()
+        # Default to week to date ending yesterday
+        days_since_monday = yesterday.weekday()
+        week_start = yesterday - timedelta(days=days_since_monday)
         return {
-            'start_date': start_date,
-            'end_date': end_date,
-            'description': f'Week to date ({start_date.strftime("%b %d")} to {end_date.strftime("%b %d")})'
+            'start_date': week_start,
+            'end_date': yesterday,
+            'description': f'Week to date ({week_start.strftime("%a %b %d")} to {yesterday.strftime("%a %b %d")})'
         }
 
 def test_comparison_logic():
@@ -1331,11 +1391,17 @@ def test_comparison_logic():
     print("\n" + "=" * 50)
 
 def get_previous_period_dates(current_start: date, current_end: date, time_filter: str = "7D") -> Dict[str, date]:
-    """Get the previous period dates for comparison using the new period-to-date logic.
+    """Get the previous period dates for comparison using exact same-period logic.
+    
+    Examples:
+    - 1D: Yesterday vs same weekday last week (Mon vs last Mon, Fri vs last Fri)
+    - 7D: Mon-Wed this week vs Mon-Wed last week
+    - 1M: Aug 1-24 vs Jul 1-24
+    - 1Y: Jan 1 - Aug 24 this year vs Jan 1 - Aug 24 last year
     
     Args:
-        current_start: Start date of current period
-        current_end: End date of current period
+        current_start: Start date of current period  
+        current_end: End date of current period (should be yesterday)
         time_filter: The time filter used to determine comparison logic
     
     Returns:
@@ -1344,133 +1410,84 @@ def get_previous_period_dates(current_start: date, current_end: date, time_filte
     from datetime import datetime, timedelta, date
     import calendar
     
-    # Get current date for calculations (Asia/Manila timezone)
-    now = datetime.now()
-    today = now.date()
-    
-    # Debug output (only if needed)
-    if False:  # Set to True for debugging
-        print(f"DEBUG COMPARISON for {time_filter}:")
-        print(f"   Input current_start: {current_start}")
-        print(f"   Input current_end: {current_end}")
-        print(f"   Today: {today}")
-    
     if time_filter == "1D":
-        # 1D (Yesterday) Comparison: Yesterday vs same weekday from previous week
-        # Current: Yesterday only
-        # Previous: Same weekday from previous week
-        yesterday = today - timedelta(days=1)
-        days_since_monday = yesterday.weekday()  # Monday = 0, Sunday = 6
-        
-        # Calculate same weekday from previous week
-        prev_start = yesterday - timedelta(days=7)
-        prev_end = yesterday - timedelta(days=7)
-        
-        print(f"   1D Logic:")
-        print(f"     Yesterday: {yesterday}")
-        print(f"     Days since Monday: {days_since_monday}")
-        print(f"     Previous same weekday: {prev_start}")
+        # Yesterday vs same weekday last week
+        # If yesterday was Monday, compare to last Monday
+        # If yesterday was Friday, compare to last Friday
+        prev_start = current_start - timedelta(days=7)  # Same weekday last week
+        prev_end = current_end - timedelta(days=7)      # Same weekday last week
         
         return {'start_date': prev_start, 'end_date': prev_end}
         
     elif time_filter == "7D":
-        # 7D (Week to Date) Comparison: Monday to yesterday vs same span from previous week
-        # Always use yesterday as end point to ensure fair comparison with completed business days
-        yesterday = today - timedelta(days=1)  # Always use yesterday as end point
+        # Week to date: Monday-Yesterday this week vs Monday-Yesterday last week
+        # Example: Mon-Wed this week vs Mon-Wed last week (exact same span)
+        period_length = (current_end - current_start).days
+        prev_start = current_start - timedelta(days=7)  # Same Monday last week
+        prev_end = prev_start + timedelta(days=period_length)  # Same span last week
         
-        # Current week: Monday to yesterday
-        current_start = yesterday - timedelta(days=yesterday.weekday())  # This week's Monday
-        current_end = yesterday  # Always end on yesterday
-        
-        # Previous week: Monday to same weekday as yesterday
-        previous_start = current_start - timedelta(days=7)  # Last week's Monday
-        previous_end = yesterday - timedelta(days=7)  # Same weekday last week as yesterday
-        
-        # Debug output (only if needed)
-        if False:  # Set to True for debugging
-            print(f"7D ALWAYS-YESTERDAY LOGIC:")
-            print(f"   Today: {today}")
-            print(f"   Yesterday: {yesterday}")
-            print(f"   Current week: {current_start} to {current_end}")
-            print(f"   Previous week: {previous_start} to {previous_end}")
-            print(f"   Days compared: {(current_end - current_start).days + 1}")
-        
-        return {'start_date': previous_start, 'end_date': previous_end}
+        return {'start_date': prev_start, 'end_date': prev_end}
         
     elif time_filter == "1M":
-        # 1M (Month to Date) Comparison: 1st to today vs same span from previous month
-        # Current: 1st of month to today
-        # Previous: 1st of previous month to same day number
-        this_month_start = today.replace(day=1)
+        # Month to date: Aug 1-24 vs Jul 1-24 (same day numbers)
+        # Calculate how many days into the month we are
+        days_into_month = current_end.day
         
-        # Calculate previous month
-        if today.month == 1:
-            prev_month = today.replace(year=today.year - 1, month=12)
+        # Go to previous month
+        if current_end.month == 1:
+            prev_month_year = current_end.year - 1
+            prev_month_num = 12
         else:
-            prev_month = today.replace(month=today.month - 1)
+            prev_month_year = current_end.year
+            prev_month_num = current_end.month - 1
         
-        prev_month_start = prev_month.replace(day=1)
+        # Start of previous month
+        prev_start = date(prev_month_year, prev_month_num, 1)
         
         # Same day number in previous month (handle month-end edge cases)
         try:
-            prev_month_end = prev_month.replace(day=today.day)
+            prev_end = date(prev_month_year, prev_month_num, days_into_month)
         except ValueError:
             # Handle cases like Jan 31 vs Feb (Feb doesn't have 31 days)
-            last_day_of_prev_month = calendar.monthrange(prev_month.year, prev_month.month)[1]
-            prev_month_end = prev_month.replace(day=last_day_of_prev_month)
+            last_day_of_prev_month = calendar.monthrange(prev_month_year, prev_month_num)[1]
+            prev_end = date(prev_month_year, prev_month_num, last_day_of_prev_month)
         
-        prev_start = prev_month_start
-        prev_end = prev_month_end
+        return {'start_date': prev_start, 'end_date': prev_end}
         
-        print(f"   1M Logic:")
-        print(f"     This month start: {this_month_start}")
-        print(f"     Previous month: {prev_month}")
-        print(f"     Previous month start: {prev_month_start}")
-        print(f"     Previous month end: {prev_month_end}")
+    elif time_filter == "6M":
+        # 6 months to date: Same 6-month period from previous year
+        # Example: Feb-Aug this year vs Feb-Aug last year
+        prev_start = date(current_start.year - 1, current_start.month, current_start.day)
+        
+        # Calculate previous end date (same day last year)
+        try:
+            prev_end = date(current_end.year - 1, current_end.month, current_end.day)
+        except ValueError:
+            # Handle leap year edge case (Feb 29)
+            prev_end = date(current_end.year - 1, current_end.month, 28)
         
         return {'start_date': prev_start, 'end_date': prev_end}
         
     elif time_filter == "1Y":
-        # 1Y (Year to Date) Comparison: 1st of year to today vs same span from previous year
-        # Current: 1st of year to today
-        # Previous: 1st of previous year to same date
-        this_year_start = today.replace(month=1, day=1)
-        prev_year_start = this_year_start.replace(year=this_year_start.year - 1)
-        prev_year_end = today.replace(year=today.year - 1)
+        # Year to date: Jan 1 - Aug 24 this year vs Jan 1 - Aug 24 last year
+        prev_start = date(current_start.year - 1, current_start.month, current_start.day)
         
-        prev_start = prev_year_start
-        prev_end = prev_year_end
-        
-        print(f"   1Y Logic:")
-        print(f"     This year start: {this_year_start}")
-        print(f"     Previous year start: {prev_year_start}")
-        print(f"     Previous year end: {prev_year_end}")
+        # Calculate previous end date (same day last year)
+        try:
+            prev_end = date(current_end.year - 1, current_end.month, current_end.day)
+        except ValueError:
+            # Handle leap year edge case (Feb 29)
+            prev_end = date(current_end.year - 1, current_end.month, 28)
         
         return {'start_date': prev_start, 'end_date': prev_end}
         
     else:
-        # Default: Use rolling period (backward compatibility)
-        period_length = (current_end - current_start).days + 1
-        prev_end = current_start - timedelta(days=1)
-        prev_start = prev_end - timedelta(days=period_length - 1)
-        
-        print(f"   Default Logic:")
-        print(f"     Period length: {period_length}")
-        print(f"     Previous end: {prev_end}")
-        print(f"     Previous start: {prev_start}")
+        # Default: assume 7-day period
+        period_length = (current_end - current_start).days
+        prev_start = current_start - timedelta(days=7)
+        prev_end = prev_start + timedelta(days=period_length)
         
         return {'start_date': prev_start, 'end_date': prev_end}
-    
-    # CRITICAL: Add debugging for final result
-    print(f"   FINAL RESULT:")
-    print(f"     Current period: {current_start} to {current_end} ({(current_end - current_start).days + 1} days)")
-    print(f"     Previous period: {prev_start} to {prev_end} ({(prev_end - prev_start).days + 1} days)")
-    print(f"     Periods should have same length: {(current_end - current_start).days + 1} == {(prev_end - prev_start).days + 1}")
-    
-    return {
-        'start_date': prev_start,
-        'end_date': prev_end
-    }
 
 def double_interval_str(interval_str: str) -> str:
     """Return a doubled SQL interval string. Examples: '7 days' -> '14 days', '1 month' -> '2 months'."""
@@ -1916,17 +1933,25 @@ def get_inventory_by_category_pie(store_ids: Optional[List[int]] = None):
 
 @st.cache_data(ttl=300)
 def get_top_sellers_analysis(time_filter="7D", store_ids: Optional[List[int]] = None):
-    """Top products with momentum indicators, with optional store filter."""
-    interval = get_time_filter_interval(time_filter)
+    """Top products with momentum indicators, with optional store filter.
+    Now uses intelligent date ranges for consistency with other functions.
+    """
+    # Get intelligent date ranges for current period
+    date_range = get_intelligent_date_range(time_filter)
+    current_start = date_range['start_date']
+    current_end = date_range['end_date']
     
-    params_current = [interval]
-    params_previous = [f'2 * {interval}', interval]
+    # Get previous period dates for comparison
+    prev_dates = get_previous_period_dates(current_start, current_end, time_filter)
+    prev_start = prev_dates['start_date']
+    prev_end = prev_dates['end_date']
     
+    params = [str(current_start), str(current_end), str(prev_start), str(prev_end)]
     store_clause = ""
     if store_ids:
         store_clause = "AND t.store_id = ANY(%s)"
-        params_current.append(store_ids)
-        params_previous.append(store_ids)
+        params.append(store_ids)
+        params.append(store_ids)  # Need it twice for both queries
 
     sql = f"""
     WITH current_period AS (
@@ -1937,7 +1962,8 @@ def get_top_sellers_analysis(time_filter="7D", store_ids: Optional[List[int]] = 
         JOIN transactions t ON ti.transaction_ref_id = t.ref_id
         JOIN products p ON ti.product_id = p.id
         WHERE LOWER(t.transaction_type) = 'sale' AND COALESCE(t.is_cancelled, false) = false
-        AND (t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL %s
+        AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') >= %s
+        AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') <= %s
         {store_clause}
         GROUP BY p.name
     ),
@@ -1949,7 +1975,8 @@ def get_top_sellers_analysis(time_filter="7D", store_ids: Optional[List[int]] = 
         JOIN transactions t ON ti.transaction_ref_id = t.ref_id
         JOIN products p ON ti.product_id = p.id
         WHERE LOWER(t.transaction_type) = 'sale' AND COALESCE(t.is_cancelled, false) = false
-        AND t.transaction_time AT TIME ZONE 'Asia/Manila' BETWEEN NOW() - INTERVAL %s AND NOW() - INTERVAL %s
+        AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') >= %s
+        AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') <= %s
         {store_clause}
         GROUP BY p.name
     )
@@ -1963,42 +1990,25 @@ def get_top_sellers_analysis(time_filter="7D", store_ids: Optional[List[int]] = 
     ORDER BY cp.total_revenue DESC
     LIMIT 10;
     """
-    # Combine params for a single query execution
-    # This requires re-writing the query to not use CTEs that depend on different params
-    # For simplicity and since the function is cached, separate executions are acceptable here.
-    # A more optimized version would use a single query with CASE statements.
     
-    # Let's create a single query for better performance
-    single_sql = f"""
-    SELECT
-        p.name as product_name,
-        SUM(CASE WHEN (t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL %s THEN ti.item_total ELSE 0 END) as total_revenue,
-        SUM(CASE WHEN t.transaction_time AT TIME ZONE 'Asia/Manila' BETWEEN NOW() - INTERVAL %s AND NOW() - INTERVAL %s THEN ti.item_total ELSE 0 END) as prev_revenue
-    FROM transaction_items ti
-    JOIN transactions t ON ti.transaction_ref_id = t.ref_id
-    JOIN products p ON ti.product_id = p.id
-    WHERE LOWER(t.transaction_type) = 'sale' AND COALESCE(t.is_cancelled, false) = false
-    AND (t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL %s
-    {store_clause}
-    GROUP BY p.name
-    ORDER BY total_revenue DESC
-    LIMIT 10;
-    """
-    params = [interval, f'2 * {interval}', interval, f'2 * {interval}']
-    if store_ids:
-        params.append(store_ids)
-        
-    df = execute_query_for_dashboard(single_sql, params=params)
+    df = execute_query_for_dashboard(sql, params=params)
     if not df.empty:
-        df['revenue_change'] = df['total_revenue'] - df['prev_revenue']
+        # Revenue change is already calculated in the query
+        pass
     return df
 
 
 @st.cache_data(ttl=300)
 def get_store_performance_heatmap(time_filter="7D", store_ids: Optional[List[int]] = None):
-    """Store performance data for heatmap, with optional store filter."""
-    interval = get_time_filter_interval(time_filter)
-    params = [interval]
+    """Store performance data for heatmap, with optional store filter.
+    Now uses intelligent date ranges for consistency with other functions.
+    """
+    # Get intelligent date ranges
+    date_range = get_intelligent_date_range(time_filter)
+    current_start = date_range['start_date']
+    current_end = date_range['end_date']
+    
+    params = [str(current_start), str(current_end)]
     store_clause = ""
     if store_ids:
         store_clause = "AND t.store_id = ANY(%s)"
@@ -2012,7 +2022,8 @@ def get_store_performance_heatmap(time_filter="7D", store_ids: Optional[List[int
     FROM transactions t
     JOIN stores s ON t.store_id = s.id
     WHERE LOWER(t.transaction_type) = 'sale' AND COALESCE(t.is_cancelled, false) = false
-    AND (t.transaction_time AT TIME ZONE 'Asia/Manila') >= (NOW() AT TIME ZONE 'Asia/Manila') - INTERVAL %s
+    AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') >= %s
+    AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') <= %s
     {store_clause}
     GROUP BY s.name, date
     ORDER BY s.name, date;
@@ -2496,6 +2507,130 @@ def get_sales_trend_analysis():
     return execute_query_for_dashboard(sql)
 
 @st.cache_data(ttl=300)
+def get_sales_trend_with_comparison(time_filter="7D", store_ids: Optional[List[int]] = None):
+    """Get daily sales trend for current period vs previous period comparison.
+    Uses intelligent date ranges and provides both current and previous period data.
+    """
+    try:
+        # Get intelligent date ranges for current period
+        date_range = get_intelligent_date_range(time_filter)
+        current_start = date_range['start_date']
+        current_end = date_range['end_date']
+        
+        # Get previous period dates for comparison
+        prev_dates = get_previous_period_dates(current_start, current_end, time_filter)
+        prev_start = prev_dates['start_date']
+        prev_end = prev_dates['end_date']
+        
+        # Build store clause and parameters correctly
+        store_clause = ""
+        store_params = []
+        if store_ids:
+            store_clause = "AND t.store_id = ANY(%s)"
+            store_params = [store_ids, store_ids]  # Need it twice for both period queries
+        
+        # Parameters in order: date ranges for CTEs, then date filters for queries, then store filters, then date arithmetic
+        params = [
+            str(current_start), str(current_end),  # current_dates CTE
+            str(prev_start), str(prev_end),        # previous_dates CTE
+            str(current_start), str(current_end)   # current_sales WHERE clause
+        ]
+        
+        # Add store filter for current_sales if needed
+        if store_ids:
+            params.append(store_ids)
+        
+        # Add previous_sales WHERE clause parameters
+        params.extend([str(prev_start), str(prev_end)])
+        
+        # Add store filter for previous_sales if needed  
+        if store_ids:
+            params.append(store_ids)
+        
+        # Add date arithmetic parameters
+        params.extend([str(current_start), str(prev_start)])
+        
+        sql = f"""
+        WITH current_dates AS (
+            SELECT generate_series(
+                %s::date,
+                %s::date,
+                INTERVAL '1 day'
+            )::date as date
+        ),
+        previous_dates AS (
+            SELECT generate_series(
+                %s::date,
+                %s::date,
+                INTERVAL '1 day'
+            )::date as date
+        ),
+        current_sales AS (
+            SELECT 
+                DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') as date,
+                COALESCE(SUM(t.total), 0) as sales
+            FROM transactions t
+            WHERE LOWER(t.transaction_type) = 'sale' 
+            AND COALESCE(t.is_cancelled, false) = false
+            AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') >= %s
+            AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') <= %s
+            {store_clause}
+            GROUP BY 1
+        ),
+        previous_sales AS (
+            SELECT 
+                DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') as date,
+                COALESCE(SUM(t.total), 0) as sales
+            FROM transactions t
+            WHERE LOWER(t.transaction_type) = 'sale' 
+            AND COALESCE(t.is_cancelled, false) = false
+            AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') >= %s
+            AND DATE(t.transaction_time AT TIME ZONE 'Asia/Manila') <= %s
+            {store_clause}
+            GROUP BY 1
+        )
+        SELECT 
+            cd.date,
+            COALESCE(cs.sales, 0) as current_sales,
+            pd.date as prev_date,
+            COALESCE(ps.sales, 0) as previous_sales
+        FROM current_dates cd
+        LEFT JOIN current_sales cs ON cd.date = cs.date
+        LEFT JOIN previous_dates pd ON (cd.date - %s::date) = (pd.date - %s::date)
+        LEFT JOIN previous_sales ps ON pd.date = ps.date
+        ORDER BY cd.date
+        """
+        
+        result = execute_query_for_dashboard(sql, params=params)
+        
+        # If no data returned, create empty dataframe with proper structure
+        if result.empty:
+            import pandas as pd
+            from datetime import timedelta
+            
+            # Generate date range for empty data
+            date_list = []
+            current_date = current_start
+            while current_date <= current_end:
+                date_list.append(current_date)
+                current_date += timedelta(days=1)
+            
+            result = pd.DataFrame({
+                'date': date_list,
+                'current_sales': [0] * len(date_list),
+                'prev_date': [d - (current_start - prev_start) for d in date_list],
+                'previous_sales': [0] * len(date_list)
+            })
+        
+        return result
+        
+    except Exception as e:
+        import streamlit as st
+        st.error(f"Error in get_sales_trend_with_comparison: {str(e)}")
+        import pandas as pd
+        return pd.DataFrame()  # Return empty dataframe on error
+
+@st.cache_data(ttl=300)
 def get_inventory_by_category():
     """Get inventory value by category using unit prices"""
     sql = """
@@ -2685,15 +2820,6 @@ def get_dashboard_highlights(metrics, top_sellers_df, time_filter):
 **Business Focus:** {"Strong performance period" if sales > 100000 else "Growth opportunity period"} - {"continue current strategies" if sales > 100000 else "consider promotional activities"}."""
     
     return highlights
-
-def generate_dashboard_ai_insights(metrics, sales_cat_df, top_sellers_df, time_filter, store_filter_ids=None):
-
-    gainers['revenue_change'] = gainers['total_revenue'] * 0.15  # Mock positive trend
-    
-    losers = top_sellers.tail(3).copy()
-    losers['revenue_change'] = -(losers['total_revenue'] * 0.05)  # Mock negative trend
-    
-    return gainers, losers
 
 def generate_dashboard_ai_insights(metrics, sales_cat_df, top_sellers_df, time_filter, store_filter_ids=None):
     """Generate AI-powered insights based on current dashboard data"""
@@ -2995,17 +3121,18 @@ def render_dashboard():
         with filter_col1:
             time_options = ["1D", "7D", "1M", "6M", "1Y", "Custom"]
             time_index = time_options.index(st.session_state.dashboard_time_filter) if st.session_state.dashboard_time_filter in time_options else 1
-            selected_time = st.radio(
-                "Select Time Period:", options=time_options, index=time_index,
-                horizontal=True, key="time_filter_selector"
+            selected_time = st.selectbox(
+                "Select Time Period:", 
+                options=time_options, 
+                index=time_index,
+                key="time_filter_selector"
             )
             
-            # Update session state only if selection changed
-            if selected_time != st.session_state.dashboard_time_filter:
-                st.session_state.dashboard_time_filter = selected_time
+            # Update session state immediately when selection changes
+            st.session_state.dashboard_time_filter = selected_time
             
             # Custom date range (only show if Custom is selected)
-            if st.session_state.dashboard_time_filter == "Custom":
+            if selected_time == "Custom":
                 st.write("**Custom Date Range:**")
                 
                 custom_start = st.date_input(
@@ -3035,16 +3162,31 @@ def render_dashboard():
 
         with filter_col3:
             store_df = get_store_list()
-            store_list = store_df['name'].tolist()
+            
+            # Check if store_df is valid and has the required column
+            if store_df is not None and not store_df.empty and 'name' in store_df.columns:
+                store_list = store_df['name'].tolist()
+            else:
+                store_list = []
+                if store_df is None:
+                    st.warning("Unable to connect to database to load stores")
+                elif store_df.empty:
+                    st.warning("No stores found in database")
+                else:
+                    st.warning("Store data missing required 'name' column")
+            
             all_stores_option = "All Stores"
             
-            # Use a different key to avoid session state conflicts
-            st.multiselect(
+            # Use selectbox for store selection to avoid multiselect issues
+            selected_stores_widget = st.multiselect(
                 "Select Store(s):",
                 options=[all_stores_option] + store_list,
-                default=st.session_state.dashboard_store_filter,
+                default=st.session_state.dashboard_store_filter if store_list else [],
                 key="store_selector_widget"
             )
+            
+            # Update session state immediately when selection changes
+            st.session_state.dashboard_store_filter = selected_stores_widget
         
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -3054,7 +3196,7 @@ def render_dashboard():
 
         # Process store filter with robust resolution
         store_filter_ids = None
-        if selected_stores and "All Stores" not in selected_stores and not store_df.empty:
+        if selected_stores and "All Stores" not in selected_stores and store_df is not None and not store_df.empty:
             debug_mode = st.session_state.get('debug_mode', False)
             store_filter_ids, unmatched_names = resolve_store_ids(store_df, selected_stores, debug=debug_mode)
             # Surface warnings for unmatched selections
@@ -3067,7 +3209,11 @@ def render_dashboard():
         if st.session_state.get('debug_mode', False):
             st.info(f"Debug: Selected stores: {selected_stores}")
             st.info(f"Debug: Store filter IDs: {store_filter_ids}")
-            st.info(f"Debug: Store dataframe: {store_df.to_dict('records') if not store_df.empty else 'Empty'}")
+            if store_df is not None:
+                st.info(f"Debug: Store dataframe: {store_df.to_dict('records') if not store_df.empty else 'Empty'}")
+            else:
+                st.info("Debug: Store dataframe is None")
+                st.info("Debug: Store dataframe: None (database connection failed)")
             
             # Test database connection with a simple query
             try:
@@ -3150,7 +3296,7 @@ def render_dashboard():
                 inv_cat_df = get_inventory_by_category_pie(store_filter_ids)
                 top_change_df = get_top_products_with_change(time_filter, store_filter_ids)
                 cat_change_df = get_categories_with_change(time_filter, store_filter_ids)
-                daily_trend_df = get_daily_trend(days={"1D":1, "7D":7, "1M":30, "6M":180, "1Y":365}.get(time_filter, 7), store_ids=store_filter_ids)
+                sales_trend_df = get_sales_trend_with_comparison(time_filter, store_filter_ids)
                 
             except Exception as e:
                 st.error(f"Error loading dashboard data: {e}")
@@ -3159,7 +3305,7 @@ def render_dashboard():
                 inv_cat_df = pd.DataFrame()
                 top_change_df = pd.DataFrame()
                 cat_change_df = pd.DataFrame()
-                daily_trend_df = pd.DataFrame()
+                sales_trend_df = pd.DataFrame()
         # End of with st.spinner block
 
         # --- 2. KPI Hero Section (Fixed Percentages) ---
@@ -3320,238 +3466,126 @@ def render_dashboard():
         
         st.markdown("<hr>", unsafe_allow_html=True)
         
-        # --- 3. Main Grid Layout with Uniform Spacing ---
+        # --- 3. FIXED DASHBOARD LAYOUT - CONSISTENT SPACING & EQUAL HEIGHTS ---
         st.markdown('''
         <style>
-        .dashboard-grid {
-            display: flex;
-            gap: 0.4rem;
-            margin-bottom: 0.4rem;
+        /* Dashboard container spacing */
+        .block-container {
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+            max-width: 95%;
         }
-        .dashboard-column {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 0.4rem;
+        
+        /* Column spacing between charts - consistent alignment */
+        .stColumn > div {
+            padding: 0 0.75rem;  /* Increased for better center alignment */
         }
-        .dashboard-item {
-            margin-bottom: 0.4rem;
+        
+        /* Consistent row spacing - reduced vertical gap */
+        .row-spacer {
+            height: 0.5rem;  /* Reduced from 1rem for smaller vertical gap */
+            margin: 0.5rem 0;  /* Reduced margin for tighter spacing */
+            clear: both;
         }
-        /* Ensure consistent spacing between all dashboard components */
-        .dashboard-item:last-child {
-            margin-bottom: 0;
+        
+        /* Chart container improvements */
+        div[data-testid="stPlotlyChart"] {
+            background-color: transparent;
         }
-        /* Reduce any additional spacing from Streamlit containers */
-        [data-testid="stContainer"] {
-            margin-bottom: 0.4rem;
+        
+        /* Table container improvements */
+        div[data-testid="stDataFrame"] {
+            background-color: transparent;
         }
-        [data-testid="stContainer"]:last-child {
-            margin-bottom: 0;
+        
+        /* Remove extra margins */
+        .element-container {
+            margin: 0 !important;
         }
-        /* Make vertical gaps exactly match horizontal column gap */
-        .dashboard-item + .dashboard-item {
-            margin-top: 0.4rem;
+        
+        /* Container border styling */
+        div[data-testid="stContainer"] {
+            border-radius: 0.5rem;
         }
-        /* Ensure pie chart columns have same vertical spacing */
-        .pie-chart-container {
-            margin-bottom: 0.4rem;
+        
+        /* Consistent chart heights per row */
+        .row-1-chart {
+            height: 350px !important;
         }
-        /* Force exact spacing match between vertical and horizontal gaps */
-        .dashboard-item {
-            margin-bottom: 0.4rem !important;
+        
+        .row-2-component {
+            height: 400px !important;
         }
-        /* Remove any extra spacing from Streamlit elements */
-        [data-testid="stContainer"] {
-            margin-bottom: 0.4rem !important;
-            padding-bottom: 0 !important;
-        }
-        /* Ensure consistent spacing for all dashboard components */
-        .dashboard-item, [data-testid="stContainer"] {
-            margin-bottom: 0.4rem !important;
-        }
-        .dashboard-item:last-child, [data-testid="stContainer"]:last-child {
-            margin-bottom: 0 !important;
-        }
-        /* Override any Streamlit default spacing */
-        .stContainer {
-            margin-bottom: 0.4rem !important;
-            padding-bottom: 0 !important;
-        }
-        /* Target specific Streamlit elements that might add spacing */
-        [data-testid="stContainer"] > div {
-            margin-bottom: 0.4rem !important;
-        }
-        /* Ensure chart containers have consistent spacing */
-        .plotly-graph-div {
-            margin-bottom: 0.4rem !important;
-        }
-        /* Target Streamlit border containers specifically */
-        [data-testid="stContainer"] {
-            margin-bottom: 0.4rem !important;
-            padding: 0.4rem !important;
-        }
-        /* Remove extra spacing from Streamlit elements */
-        [data-testid="stContainer"] * {
-            margin-bottom: 0.4rem !important;
-        }
-        [data-testid="stContainer"] *:last-child {
-            margin-bottom: 0 !important;
-        }
-        /* Force exact spacing for all dashboard elements */
-        .dashboard-item, [data-testid="stContainer"], .plotly-graph-div, [data-testid="stDataFrame"] {
-            margin-bottom: 0.4rem !important;
-        }
-        .dashboard-item:last-child, [data-testid="stContainer"]:last-child, .plotly-graph-div:last-child, [data-testid="stDataFrame"]:last-child {
-            margin-bottom: 0 !important;
-        }
-        /* Override Streamlit's default gap values to match our spacing */
-        [data-testid="column"] {
-            gap: 0.4rem !important;
-        }
-        /* Override Streamlit's small gap specifically */
-        [data-testid="column"] {
-            margin-right: 0.4rem !important;
-        }
-        [data-testid="column"]:last-child {
-            margin-right: 0 !important;
-        }
-        /* Target all possible spacing sources */
-        .dashboard-item, [data-testid="stContainer"], .plotly-graph-div, [data-testid="stDataFrame"], [data-testid="stMarkdown"] {
-            margin-bottom: 0.4rem !important;
-            padding-bottom: 0 !important;
-        }
-        /* Remove any extra spacing from the last elements */
-        .dashboard-item:last-child, [data-testid="stContainer"]:last-child, .plotly-graph-div:last-child, [data-testid="stDataFrame"]:last-child, [data-testid="stMarkdown"]:last-child {
-            margin-bottom: 0 !important;
-            padding-bottom: 0 !important;
+        
+        .row-3-component {
+            height: 400px !important;
         }
         </style>
         ''', unsafe_allow_html=True)
+
+        # ROW 1: 3 charts side by side - 2 pies + 1 bar with width matching Row 2 proportions
+        col1, col2, col3 = st.columns([1, 1, 2])  # 2 pies combined = same width as table
         
-        st.markdown('<div class="chart-container">', unsafe_allow_html=True)
-        left_col, center_col = st.columns([1, 1], gap="small")
-
-        # --- LEFT COLUMN - PRODUCT & CATEGORY ANALYTICS ---
-        with left_col:
-            pie_col1, pie_col2 = st.columns(2, gap="small")
-            
-            with pie_col1:
-                st.markdown('<div class="dashboard-item">', unsafe_allow_html=True)
-                with st.container(border=True):
-                    st.markdown("##### Sales by Category")
-                    if not sales_cat_df.empty:
-                        df_plot = sales_cat_df.head(10).copy()
-                        df_plot['category_canonical'] = df_plot['category'].astype(str).apply(canonicalize_category_label)
-                        df_plot = df_plot.groupby('category_canonical', as_index=False)['total_revenue'].sum()
-                        fig = px.pie(
-                            df_plot,
-                            values='total_revenue',
-                            names='category_canonical',
-                            color='category_canonical',
-                            hole=0.4,
-                            color_discrete_map=get_fixed_category_color_map()
-                        )
-                        fig.update_traces(textposition='inside', textinfo='percent+label')
-                        fig.update_layout(showlegend=False, height=300, margin=dict(t=0, b=0, l=0, r=0), template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.info("No sales data available for selected period/stores.")
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-            with pie_col2:
-                st.markdown('<div class="dashboard-item">', unsafe_allow_html=True)
-                with st.container(border=True):
-                    st.markdown("##### Inventory by Category")
-                    if not inv_cat_df.empty:
-                        df_plot = inv_cat_df.copy()
-                        df_plot['category_canonical'] = df_plot['category'].astype(str).apply(canonicalize_category_label)
-                        df_plot = df_plot.groupby('category_canonical', as_index=False)['total_inventory_value'].sum()
-                        fig = px.pie(
-                            df_plot,
-                            values='total_inventory_value',
-                            names='category_canonical',
-                            color='category_canonical',
-                            hole=0.4,
-                            color_discrete_map=get_fixed_category_color_map()
-                        )
-                        fig.update_traces(textposition='inside', textinfo='percent+label')
-                        fig.update_layout(showlegend=False, height=300, margin=dict(t=0, b=0, l=0, r=0), template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.info("No inventory data available for selected stores.")
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            # Top 10 Products with % change vs previous period
-            st.markdown('<div class="dashboard-item">', unsafe_allow_html=True)
+        # Sales by Category (Left pie)
+        with col1:
             with st.container(border=True):
-                st.markdown("##### Top 10 Products (with % change)")
-                if not top_change_df.empty:
-                    df_disp = top_change_df.copy()
-                    # Build display columns
-                    df_disp.rename(columns={'product_name': 'Product', 'total_revenue': 'Sales'}, inplace=True)
-                    def _pct_cell(x):
-                        if x is None or (isinstance(x, float) and pd.isna(x)):
-                            return "New"
-                        arrow = '▲' if x >= 0 else '▼'
-                        return f"{arrow} {abs(x):.1f}%"
-                    df_disp['Δ %'] = df_disp['pct_change'].apply(_pct_cell)
-                    show_df = df_disp[['Product', 'Sales', 'Δ %']].copy()
-                    # Styling
-                    def style_change(col):
-                        styles = []
-                        for val in col:
-                            if isinstance(val, str) and val.startswith('▲'):
-                                styles.append('color: #00c853; font-weight: 600')
-                            elif isinstance(val, str) and val.startswith('▼'):
-                                styles.append('color: #ff5252; font-weight: 600')
-                            else:
-                                styles.append('color: #aaaaaa')
-                        return styles
-                    styled = (show_df.style
-                        .format({'Sales': '₱{:,.0f}'})
-                        .apply(style_change, subset=['Δ %']))
-                    # Render Styler via st.write to avoid KeyError from st.dataframe on Styler objects
-                    st.write(styled)
+                st.markdown("##### Sales by Category")
+                if not sales_cat_df.empty:
+                    df_plot = sales_cat_df.head(10).copy()
+                    df_plot['category_canonical'] = df_plot['category'].astype(str).apply(canonicalize_category_label)
+                    df_plot = df_plot.groupby('category_canonical', as_index=False)['total_revenue'].sum()
+                    fig = px.pie(
+                        df_plot,
+                        values='total_revenue',
+                        names='category_canonical',
+                        color='category_canonical',
+                        hole=0.3,
+                        color_discrete_map=get_fixed_category_color_map()
+                    )
+                    fig.update_traces(textposition='inside', textinfo='percent+label', textfont_size=11)
+                    fig.update_layout(
+                        showlegend=False, 
+                        height=380,  # Increased for perfect fit
+                        margin=dict(t=20, b=20, l=20, r=20),  # Optimized margins
+                        template="plotly_dark", 
+                        paper_bgcolor='rgba(0,0,0,0)', 
+                        plot_bgcolor='rgba(0,0,0,0)'
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
                 else:
-                    st.info("No product data available for selected period/stores.")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-            # Categories Ranked, stacked under Top Products in the same (left) column
-            st.markdown('<div class="dashboard-item">', unsafe_allow_html=True)
+                    st.info("No sales data available for selected period/stores.")
+        
+        # Inventory by Category (Center pie)
+        with col2:
             with st.container(border=True):
-                st.markdown("##### Categories Ranked (with % change)")
-                if not cat_change_df.empty:
-                    dfc = cat_change_df.copy()
-                    dfc.rename(columns={'category': 'Category', 'total_revenue': 'Sales'}, inplace=True)
-                    def _pct_cell2(x):
-                        if x is None or (isinstance(x, float) and pd.isna(x)):
-                            return "New"
-                        arrow = '▲' if x >= 0 else '▼'
-                        return f"{arrow} {abs(x):.1f}%"
-                    dfc['Δ %'] = dfc['pct_change'].apply(_pct_cell2)
-                    show_c = dfc[['Category', 'Sales', 'Δ %']].copy()
-                    def style_change2(col):
-                        styles = []
-                        for val in col:
-                            if isinstance(val, str) and val.startswith('▲'):
-                                styles.append('color: #00c853; font-weight: 600')
-                            elif isinstance(val, str) and val.startswith('▼'):
-                                styles.append('color: #ff5252; font-weight: 600')
-                            else:
-                                styles.append('color: #aaaaaa')
-                        return styles
-                    styled_c = (show_c.style
-                        .format({'Sales': '₱{:,.0f}'})
-                        .apply(style_change2, subset=['Δ %']))
-                    # Render Styler via st.write to avoid KeyError from st.dataframe on Styler objects
-                    st.write(styled_c)
+                st.markdown("##### Inventory by Category")
+                if not inv_cat_df.empty:
+                    df_plot = inv_cat_df.copy()
+                    df_plot['category_canonical'] = df_plot['category'].astype(str).apply(canonicalize_category_label)
+                    df_plot = df_plot.groupby('category_canonical', as_index=False)['total_inventory_value'].sum()
+                    fig = px.pie(
+                        df_plot,
+                        values='total_inventory_value',
+                        names='category_canonical',
+                        color='category_canonical',
+                        hole=0.3,
+                        color_discrete_map=get_fixed_category_color_map()
+                    )
+                    fig.update_traces(textposition='inside', textinfo='percent+label', textfont_size=11)
+                    fig.update_layout(
+                        showlegend=False, 
+                        height=380,  # Increased for perfect fit
+                        margin=dict(t=20, b=20, l=20, r=20),  # Optimized margins
+                        template="plotly_dark", 
+                        paper_bgcolor='rgba(0,0,0,0)', 
+                        plot_bgcolor='rgba(0,0,0,0)'
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
                 else:
-                    st.info("No category data available for selected period/stores.")
-            st.markdown('</div>', unsafe_allow_html=True)
+                    st.info("No inventory data available for selected stores.")
 
-        # --- CENTER COLUMN - STORE & SALES ANALYTICS ---
-        with center_col:
-            st.markdown('<div class="dashboard-item">', unsafe_allow_html=True)
+        # Store Performance (Right bar - same width as Sales Trend Analysis)
+        with col3:
             with st.container(border=True):
                 st.markdown("##### Store Performance")
                 store_performance = get_store_performance_with_comparison(time_filter, store_filter_ids if store_filter_ids else None)
@@ -3574,86 +3608,256 @@ def render_dashboard():
                         color_discrete_map=store_color_map
                     )
                     
-                    # Add percentage change annotations on top of each bar BEFORE displaying
+                    # Add percentage change annotations
                     for idx, (_, store) in enumerate(store_performance.head(5).iterrows()):
                         current_sales = store['total_sales']
                         pct_change = store.get('pct_change')
                         
-                        # Format percentage change with arrow
                         if pct_change is not None:
                             if pct_change > 0:
                                 annotation_text = f"↗ +{pct_change:.1f}%"
-                                annotation_color = "#2ECC71"  # Green for positive
+                                annotation_color = "#2ECC71"
                             elif pct_change < 0:
                                 annotation_text = f"↘ {pct_change:.1f}%"
-                                annotation_color = "#E74C3C"  # Red for negative
+                                annotation_color = "#E74C3C"
                             else:
                                 annotation_text = "→ 0.0%"
-                                annotation_color = "#95A5A6"  # Gray for no change
+                                annotation_color = "#95A5A6"
                         else:
                             annotation_text = "New ↗"
-                            annotation_color = "#F39C12"  # Orange for new data
+                            annotation_color = "#F39C12"
                         
-                        # Add annotation on top of each bar
                         fig.add_annotation(
                             x=store['store_name'],
                             y=current_sales,
                             text=annotation_text,
                             showarrow=False,
                             font=dict(color=annotation_color, size=11, family="Arial Black"),
-                            yshift=15,  # Position above the bar
-                            bgcolor="rgba(0,0,0,0)",  # Transparent background
-                            bordercolor="rgba(0,0,0,0)",  # No border
+                            yshift=15,
+                            bgcolor="rgba(0,0,0,0)",
+                            bordercolor="rgba(0,0,0,0)",
                             borderwidth=0
                         )
                     
-                    # Update layout after adding annotations
-                    fig.update_layout(height=300, margin=dict(t=30, b=0, l=0, r=0), template="plotly_dark", 
-                                      paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
+                    fig.update_layout(
+                        height=500,  # Uniform height for all charts
+                        margin=dict(t=40, b=20, l=20, r=20), 
+                        template="plotly_dark", 
+                        paper_bgcolor='rgba(0,0,0,0)', 
+                        plot_bgcolor='rgba(0,0,0,0)', 
+                        showlegend=False
+                    )
                     fig.update_yaxes(tickprefix='₱', separatethousands=True)
-                    fig.update_xaxes(title_text="")  # Remove x-axis label
+                    fig.update_xaxes(title_text="")
                     
-                    # Display the chart with annotations
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("No store performance data available.")
-            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Row spacer between chart rows
+        st.markdown('<div class="row-spacer"></div>', unsafe_allow_html=True)
 
-            st.markdown('<div class="dashboard-item">', unsafe_allow_html=True)
+        # ROW 2: Two equal-width charts 
+        col1, col2 = st.columns(2)
+        
+        # Top 10 Products Table (Left - same width as both pies combined)
+        with col1:
+            with st.container(border=True):  # Remove fixed height, let it size naturally
+                # Header with download button
+                col_header, col_download = st.columns([3, 1])
+                with col_header:
+                    st.markdown("##### Top 10 Products (with % change)")
+                with col_download:
+                    # Download button in top right
+                    csv = top_change_df.rename(columns={'product_name': 'Product', 'total_revenue': 'Sales'}).copy()
+                    csv['Δ %'] = csv['pct_change'].apply(lambda x: f"{x:.1f}%" if x is not None else "New")
+                    csv_data = csv[['Product', 'Sales', 'Δ %']].to_csv(index=False)
+                    st.download_button(
+                        label="Download",
+                        data=csv_data,
+                        file_name="top_10_products_with_change.csv",
+                        mime="text/csv",
+                        type="secondary",
+                        use_container_width=True
+                    )
+                
+                if not top_change_df.empty:
+                    df_disp = top_change_df.copy()
+                    df_disp.rename(columns={'product_name': 'Product', 'total_revenue': 'Sales'}, inplace=True)
+                    def _pct_cell(x):
+                        if x is None or (isinstance(x, float) and pd.isna(x)):
+                            return "New"
+                        arrow = '▲' if x >= 0 else '▼'
+                        return f"{arrow} {abs(x):.1f}%"
+                    df_disp['Δ %'] = df_disp['pct_change'].apply(_pct_cell)
+                    show_df = df_disp[['Product', 'Sales', 'Δ %']].copy()
+                    
+                    def style_change(col):
+                        styles = []
+                        for val in col:
+                            if isinstance(val, str) and val.startswith('▲'):
+                                styles.append('color: #00c853; font-weight: 600')
+                            elif isinstance(val, str) and val.startswith('▼'):
+                                styles.append('color: #ff5252; font-weight: 600')
+                            else:
+                                styles.append('color: #aaaaaa')
+                        return styles
+                    
+                    styled = (show_df.style
+                        .format({'Sales': '₱{:,.0f}'})
+                        .apply(style_change, subset=['Δ %']))
+                    
+                    # Display as completely flat table (non-scrollable)
+                    st.table(styled)
+                else:
+                    st.info("No product data available for selected period/stores.")
+        
+        # Sales Trend Analysis (Right - same width as Store Performance bar)
+        with col2:
             with st.container(border=True):
                 st.markdown("##### Sales Trend Analysis")
-                if not daily_trend_df.empty:
-                    fig = px.area(daily_trend_df, x='date', y='daily_sales', 
-                                 title=f"Sales Trend for Last {time_filter}")
-                    fig.update_layout(height=300, margin=dict(t=30, b=0, l=0, r=0), 
-                                    template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', 
-                                    plot_bgcolor='rgba(0,0,0,0)')
+                
+                if not sales_trend_df.empty and len(sales_trend_df) > 0 and sales_trend_df['current_sales'].sum() > 0:
+                    fig = go.Figure()
+                    
+                    # Add current period line (blue)
+                    fig.add_trace(go.Scatter(
+                        x=sales_trend_df['date'],
+                        y=sales_trend_df['current_sales'],
+                        mode='lines+markers',
+                        name='Current Period',
+                        line=dict(color='#00d4ff', width=3),
+                        marker=dict(size=6),
+                        fill='tonexty' if 'previous_sales' in sales_trend_df.columns else 'tozeroy',
+                        fillcolor='rgba(0, 212, 255, 0.1)',
+                        hovertemplate='<b>%{fullData.name}</b><br>Date: %{x}<br>Sales: ₱%{y:,.0f}<extra></extra>'
+                    ))
+                    
+                    # Add previous period line (red) if data exists
+                    if 'previous_sales' in sales_trend_df.columns and sales_trend_df['previous_sales'].notna().any():
+                        fig.add_trace(go.Scatter(
+                            x=sales_trend_df['date'],
+                            y=sales_trend_df['previous_sales'],
+                            mode='lines+markers',
+                            name='Previous Period',
+                            line=dict(color='#ff4757', width=3, dash='dash'),
+                            marker=dict(size=6),
+                            fill='tozeroy',
+                            fillcolor='rgba(255, 71, 87, 0.1)',
+                            hovertemplate='<b>%{fullData.name}</b><br>Date: %{x}<br>Sales: ₱%{y:,.0f}<extra></extra>'
+                        ))
+                    
+                    # Get date range for title
+                    date_range = get_intelligent_date_range(time_filter)
+                    current_desc = date_range.get('description', f'Last {time_filter}')
+                    title_text = f"Sales Trend: {current_desc}"
+                    
+                    fig.update_layout(
+                        height=420,  # Optimal height for charts to match table size
+                        margin=dict(t=30, b=20, l=20, r=20),  # Balanced margins
+                        template="plotly_dark", 
+                        paper_bgcolor='rgba(0,0,0,0)', 
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        xaxis_title="Date",
+                        yaxis_title="Daily Sales (₱)",
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.02,
+                            xanchor="right",
+                            x=1
+                        ),
+                        hovermode='x unified'
+                    )
+                    
+                    fig.update_yaxes(tickformat="₱,.0f")
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info("No sales trend data for this period.")
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            # New Section: Average Sales Per Hour (across selected window)
-            st.markdown('<div class="dashboard-item">', unsafe_allow_html=True)
+        
+        # Row spacer between chart rows
+        st.markdown('<div class="row-spacer"></div>', unsafe_allow_html=True)
+
+        # ROW 3: Two equal-width charts
+        col1, col2 = st.columns(2)
+        
+        # Categories Ranked Table (Left)
+        with col1:
+            with st.container(border=True):  # Remove fixed height, let it size naturally
+                # Header with download button
+                col_header, col_download = st.columns([3, 1])
+                with col_header:
+                    st.markdown("##### Categories Ranked (with % change)")
+                with col_download:
+                    # Download button in top right
+                    csv = cat_change_df.rename(columns={'category': 'Category', 'total_revenue': 'Sales'}).copy()
+                    csv['Δ %'] = csv['pct_change'].apply(lambda x: f"{x:.1f}%" if x is not None else "New")
+                    csv_data = csv[['Category', 'Sales', 'Δ %']].to_csv(index=False)
+                    st.download_button(
+                        label="Download",
+                        data=csv_data,
+                        file_name="categories_ranked_with_change.csv",
+                        mime="text/csv",
+                        type="secondary",
+                        use_container_width=True
+                    )
+                
+                if not cat_change_df.empty:
+                    dfc = cat_change_df.copy()
+                    dfc.rename(columns={'category': 'Category', 'total_revenue': 'Sales'}, inplace=True)
+                    def _pct_cell2(x):
+                        if x is None or (isinstance(x, float) and pd.isna(x)):
+                            return "New"
+                        arrow = '▲' if x >= 0 else '▼'
+                        return f"{arrow} {abs(x):.1f}%"
+                    dfc['Δ %'] = dfc['pct_change'].apply(_pct_cell2)
+                    show_c = dfc[['Category', 'Sales', 'Δ %']].copy()
+                    
+                    def style_change2(col):
+                        styles = []
+                        for val in col:
+                            if isinstance(val, str) and val.startswith('▲'):
+                                styles.append('color: #00c853; font-weight: 600')
+                            elif isinstance(val, str) and val.startswith('▼'):
+                                styles.append('color: #ff5252; font-weight: 600')
+                            else:
+                                styles.append('color: #aaaaaa')
+                        return styles
+                    
+                    styled2 = (show_c.style
+                        .format({'Sales': '₱{:,.0f}'})
+                        .apply(style_change2, subset=['Δ %']))
+                    
+                    # Display as completely flat table (non-scrollable)
+                    st.table(styled2)
+                else:
+                    st.info("No category data available for selected period/stores.")
+
+        # Average Sales Per Hour Chart (Right)
+        with col2:
             with st.container(border=True):
                 st.markdown("##### Average Sales Per Hour")
                 try:
                     df = get_avg_sales_per_hour(time_filter, store_filter_ids if store_filter_ids else None)
                     if df is not None and len(df) > 0:
-                        # Display only hours with sales
                         df_plot = df[df["avg_sales_per_hour"] > 0].copy()
                         if df_plot.empty:
                             st.info("No hourly sales were recorded in this period.")
                         else:
                             fig = go.Figure()
                             fig.add_bar(name="Avg per Hour", x=df_plot["hour_label"], y=df_plot["avg_sales_per_hour"], marker_color="#2E86DE")
-                            fig.update_layout(template="plotly_dark", height=380,
-                                              margin=dict(l=10, r=10, t=10, b=10), xaxis=dict(tickangle=-45),
-                                              showlegend=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                            fig.update_layout(
+                                template="plotly_dark", 
+                                height=420,  # Optimal height for charts to match table size
+                                margin=dict(t=30, b=20, l=20, r=20),  # Balanced margins
+                                xaxis=dict(tickangle=-45),
+                                showlegend=False, 
+                                paper_bgcolor='rgba(0,0,0,0)', 
+                                plot_bgcolor='rgba(0,0,0,0)'
+                            )
                             fig.update_yaxes(tickprefix='₱', separatethousands=True)
                             fig.update_traces(hovertemplate='%{x}: ₱%{y:,.0f}<extra></extra>')
                             st.plotly_chart(fig, use_container_width=True)
-                            # Caption uses full df to reflect daily total across all hours
                             st.caption(
                                 f"Average daily total (sum of hourly avgs): ₱{float(df['avg_sales_per_hour'].sum()):,.0f}"
                             )
@@ -3661,13 +3865,6 @@ def render_dashboard():
                         st.info("No data for the selected period/stores.")
                 except Exception:
                     st.info("No data for the selected period/stores.")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-            # Center column keeps Store Performance and Sales Trend only
-
-        # (Removed bottom Sales Trend Analysis and Inventory by Category sections)
-        st.markdown('</div>', unsafe_allow_html=True)  # Close chart-container
-        
 
         
         # --- AI Intelligence Section (Fullscreen) ---
@@ -5461,6 +5658,64 @@ class SmartAlertManager:
             })
             
         return alerts[:20]  # Limit to 20 most critical
+
+# --- PLACEHOLDER FUNCTIONS FOR ADVANCED ANALYTICS ---
+def stockout_predictions(store_filter_ids=None):
+    """Placeholder for stockout predictions."""
+    return pd.DataFrame({
+        'product_name': ['Sample Product A', 'Sample Product B'],
+        'days_until_stockout': [15, 8],
+        'confidence': [0.85, 0.72]
+    })
+
+def demand_forecasts(store_filter_ids=None):
+    """Placeholder for demand forecasts."""
+    return pd.DataFrame({
+        'product_name': ['Sample Product A', 'Sample Product B'],
+        'predicted_demand': [150, 89],
+        'confidence': [0.78, 0.65]
+    })
+
+def seasonal_intelligence(store_filter_ids=None):
+    """Placeholder for seasonal intelligence."""
+    return pd.DataFrame({
+        'category': ['Seasonal Items', 'Holiday Products'],
+        'seasonal_factor': [1.35, 1.82],
+        'peak_period': ['Q4', 'December']
+    })
+
+def get_inventory_risk(time_filter="7D", store_filter_ids=None):
+    """Placeholder for inventory risk analysis."""
+    return pd.DataFrame({
+        'risk_type': ['Overstock Risk', 'Stockout Risk', 'Obsolescence Risk'],
+        'affected_products': [12, 8, 5],
+        'total_value': [45000, 23000, 15000]
+    })
+
+# --- AI ANALYTICS CLASSES ---
+class AIAnalyticsEngine:
+    """Base AI analytics engine for executing queries."""
+    def __init__(self, db_connection_func):
+        self.get_db_connection = db_connection_func
+
+    def _execute_query(self, sql):
+        """Internal query executor with error handling."""
+        logger = get_logger()
+        try:
+            conn = self.get_db_connection()
+            if not conn: 
+                logger.error("Failed to get database connection")
+                return pd.DataFrame()
+            
+            result = pd.read_sql(sql, conn)
+            logger.info("Query executed successfully", rows_returned=len(result))
+            return result
+        except Exception as e:
+            logger.error("Query execution failed", error=str(e), sql_preview=sql[:100])
+            return pd.DataFrame()
+        finally:
+            if conn: 
+                conn.close()
 
 # --- NEW AI HUB V2 CLASSES ---
 class PredictiveForecastingEngine:

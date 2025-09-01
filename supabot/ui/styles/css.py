@@ -87,6 +87,36 @@ class DashboardStyles:
         font-size: 0.7rem;
     }
 
+    /* Chart containers - consistent sizing */
+    .chart-container {
+        width: 100% !important;
+        margin-bottom: 0.75rem;
+    }
+    
+    /* Ensure all Plotly charts have consistent height */
+    .plotly-graph-div {
+        height: 350px !important;
+    }
+    
+    /* Force all chart containers to same height */
+    [data-testid="stContainer"] {
+        min-height: 350px;
+    }
+    
+    /* Reduce gaps between chart rows to match horizontal gaps */
+    .stApp > div > div > div > div {
+        gap: 0.75rem !important;
+    }
+    
+    /* Force consistent row spacing */
+    [data-testid="stVerticalBlock"] > div {
+        margin-bottom: 0.75rem !important;
+    }
+    
+    [data-testid="stVerticalBlock"] > div:last-child {
+        margin-bottom: 0 !important;
+    }
+    
     /* Custom card styling - Mobile first */
     .dashboard-card {
         background-color: #1c1e26;
@@ -94,15 +124,15 @@ class DashboardStyles:
         border-radius: 10px;
         padding: 0.75rem;
         height: auto;
-        min-height: 300px;
+        min-height: 350px;
         display: flex;
         flex-direction: column;
-        margin-bottom: 0.4rem;
+        margin-bottom: 0.25rem;
     }
     
     /* Ensure consistent vertical spacing between dashboard items */
     .dashboard-item {
-        margin-bottom: 0.4rem !important;
+        margin-bottom: 0.75rem !important;
     }
     
     .dashboard-item:last-child {
@@ -111,16 +141,16 @@ class DashboardStyles:
     
     /* Make vertical gaps exactly match horizontal column gap */
     .dashboard-item + .dashboard-item {
-        margin-top: 0.4rem !important;
+        margin-top: 0.75rem !important;
     }
     
     /* Force consistent spacing for Streamlit containers */
     [data-testid="stContainer"] {
-        margin-bottom: 0.4rem !important;
+        margin-bottom: 0.75rem !important;
     }
     
     .dashboard-card-tall {
-        min-height: 400px;
+        min-height: 450px;
     }
     
     .dashboard-card h5 {
@@ -446,7 +476,7 @@ class DashboardStyles:
         
         /* Increase spacing between interactive elements */
         [data-testid="stMetric"], .dashboard-card, button {
-            margin-bottom: 0.4rem;
+            margin-bottom: 0.75rem;
         }
     }
     
@@ -530,6 +560,47 @@ class DashboardStyles:
         }
     }
     
+    /* ===== HIGH PRIORITY OVERRIDES (force tight vertical gaps & equal heights) ===== */
+    /* Tighten vertical gap to match horizontal column gap */
+    .stApp [data-testid="stVerticalBlock"] > div,
+    .stApp [data-testid="block-container"] > div,
+    .stApp .block-container > div > div {
+        gap: 0.5rem !important;
+        margin-bottom: 0.5rem !important;
+        padding-bottom: 0 !important;
+    }
+
+    /* Force consistent minimal margins on Streamlit internal columns */
+    [data-testid="column"] {
+        margin-bottom: 0 !important;
+        padding-bottom: 0 !important;
+    }
+
+    /* Make all dashboard item containers exactly the same height */
+    .dashboard-item,
+    [data-testid="stContainer"],
+    .stPlotlyChart,
+    .plotly-graph-div,
+    [data-testid="stDataFrame"] {
+        height: 350px !important;
+        min-height: 350px !important;
+        max-height: 350px !important;
+        margin-bottom: 0.5rem !important;
+        overflow: hidden !important;
+    }
+
+    /* Ensure plotly inner graph respects the forced height */
+    .stPlotlyChart > div,
+    .plotly-graph-div > div,
+    .plotly-graph-div {
+        height: 350px !important;
+        min-height: 350px !important;
+        max-height: 350px !important;
+    }
+
+    /* Allow tables and long content to scroll within fixed-height containers */
+    [data-testid="stDataFrame"], .dashboard-item { overflow-y: auto !important; }
+
     </style>
     """
     
@@ -569,5 +640,5 @@ def load_css():
 
 
 # Auto-load styles when imported
-DashboardStyles.load_custom_dark_css()
+DashboardStyles.load_all_styles()
 
