@@ -13,24 +13,61 @@ class ClaudeClient:
     
     def __init__(self):
         self._client = None
+        self._client_initialized = False
+        self._initialization_failed = False
     
     @property
     def client(self) -> Optional[anthropic.Anthropic]:
         """Get or create the Claude client."""
+        # If initialization already failed, don't try again
+        if self._initialization_failed:
+            return None
+            
+        # If already initialized successfully, return the client
+        if self._client_initialized:
+            return self._client
+            
+        # First time initialization
         if self._client is None:
             api_key = settings.get_anthropic_api_key()
-            if api_key:
-                try:
-                    self._client = anthropic.Anthropic(api_key=api_key)
-                except Exception as e:
-                    st.error(f"Failed to initialize Claude client: {e}")
-                    return None
+            if not api_key:
+                st.error("⚠️ Anthropic API key is not configured")
+                st.info("Please add your Anthropic API key to `.streamlit/secrets.toml` to use the AI Assistant feature.")
+                with st.expander("How to configure the API key"):
+                    st.markdown("""
+                    Add the following to your `.streamlit/secrets.toml` file:
+                    
+                    ```toml
+                    [anthropic]
+                    api_key = "sk-ant-api03-..."
+                    ```
+                    
+                    Or use the alternative format:
+                    
+                    ```toml
+                    ANTHROPIC_API_KEY = "sk-ant-api03-..."
+                    ```
+                    """)
+                self._initialization_failed = True
+                return None
+            
+            try:
+                self._client = anthropic.Anthropic(api_key=api_key)
+                # Mark as initialized - we'll test on first actual use
+                self._client_initialized = True
+                    
+            except Exception as e:
+                st.error(f"❌ Failed to initialize Claude client: {str(e)}")
+                st.info("Please verify your API key configuration in `.streamlit/secrets.toml`")
+                self._initialization_failed = True
+                return None
         return self._client
     
     def generate_sql(self, question: str, schema_info: Optional[dict] = None, 
                     training_context: str = "") -> Optional[str]:
         """Generate SQL query from natural language question."""
         if not self.client:
+            st.warning("🤖 AI Assistant is not available - API client not initialized")
             return None
             
         try:
@@ -78,14 +115,28 @@ Generate the SQL query:
             
             return sql_query
             
+        except anthropic.AuthenticationError as e:
+            st.error("🔑 Authentication failed: Invalid API key")
+            st.info("Please verify your Anthropic API key in `.streamlit/secrets.toml`")
+            return None
+        except anthropic.APIConnectionError as e:
+            st.error("🌐 Cannot connect to Anthropic API")
+            st.warning(f"Connection error: {str(e)}")
+            st.info("Please check your network connection and firewall settings")
+            return None
+        except anthropic.RateLimitError as e:
+            st.error("⏱️ Rate limit exceeded")
+            st.warning("Too many requests to the Anthropic API. Please wait a moment and try again.")
+            return None
         except Exception as e:
-            st.error(f"SQL generation failed: {e}")
+            st.error(f"❌ SQL generation failed: {str(e)}")
+            st.info("Please try rephrasing your question or check the error details above.")
             return None
     
     def interpret_results(self, question: str, results_df, sql_query: str) -> str:
         """Interpret query results and provide insights."""
         if not self.client:
-            return "AI interpretation unavailable"
+            return "AI interpretation is currently unavailable. Please check your API configuration."
             
         try:
             # Prepare results summary
@@ -124,8 +175,14 @@ Keep response under 200 words and focus on business value.
             
             return response.content[0].text.strip()
             
+        except anthropic.AuthenticationError:
+            return "⚠️ Authentication failed. Please check your API key configuration."
+        except anthropic.APIConnectionError as e:
+            return f"⚠️ Connection error: Unable to reach Anthropic API. Please check your network connection."
+        except anthropic.RateLimitError:
+            return "⚠️ Rate limit exceeded. Please wait a moment before asking another question."
         except Exception as e:
-            return f"Interpretation failed: {e}"
+            return f"⚠️ Interpretation failed: {str(e)}"
     
     def _format_schema_context(self, schema_info: dict) -> str:
         """Format database schema information for the prompt."""

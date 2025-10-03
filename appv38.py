@@ -349,7 +349,20 @@ Generate ONLY the SQL query, no explanations:"""
         return sql
     except Exception as e:
         logger.error("AI query generation failed", error=str(e))
-        st.error(f"AI query generation failed: {e}")
+        # Check if it's a known API error
+        if "AuthenticationError" in str(type(e).__name__):
+            st.error("🔑 Authentication failed: Invalid Anthropic API key")
+            st.info("Please add a valid API key to `.streamlit/secrets.toml`")
+        elif "APIConnectionError" in str(type(e).__name__) or "ConnectionError" in str(type(e).__name__):
+            st.error("🌐 Cannot connect to Anthropic API")
+            st.warning(f"Connection error: {str(e)}")
+            st.info("Please check:\n- Internet connection\n- Network/firewall restrictions\n- Anthropic API status")
+        elif "RateLimitError" in str(type(e).__name__):
+            st.error("⏱️ Rate limit exceeded")
+            st.info("Please wait a moment before trying again")
+        else:
+            st.error(f"❌ AI query generation failed: {str(e)}")
+            st.info("Please check your API configuration and try again")
         return None
 
 def interpret_results(question, results_df, sql_query):
@@ -5046,7 +5059,7 @@ def render_chat():
             else:
                 st.session_state.messages.append({
                     "role": "assistant", 
-                    "error": "I couldn't generate a query for that question. Try being more specific."
+                    "error": "❌ Unable to generate SQL query. This could be due to:\n- Missing or invalid Anthropic API key\n- Network connectivity issues\n- API service unavailability\n\nPlease check the error messages above for more details."
                 })
         st.rerun()
 
